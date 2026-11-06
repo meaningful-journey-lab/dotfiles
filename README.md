@@ -49,7 +49,7 @@ Running the switch builds:
 On a brand new Mac, from a bare clone of this repo:
 
 ```sh
-git clone https://github.com/cloud-practitioner/dotfiles.git
+git clone https://github.com/meaningful-journey-lab/dotfiles.git
 cd dotfiles
 ```
 
@@ -135,7 +135,7 @@ The same two scripts work - they detect the OS with `uname` and branch automatic
 On a fresh WSL2 distro with systemd enabled (see the WSL2 + systemd note below), clone straight into `~/.dotfiles` and bootstrap:
 
 ```sh
-git clone https://github.com/cloud-practitioner/dotfiles.git ~/.dotfiles && ~/.dotfiles/bootstrap.sh
+git clone https://github.com/meaningful-journey-lab/dotfiles.git ~/.dotfiles && ~/.dotfiles/bootstrap.sh
 ```
 
 Every step checks before acting, so re-running `bootstrap.sh` does nothing beyond the Home Manager switch.
@@ -202,7 +202,7 @@ The Pi and Copilot installers run without a controlling terminal, so they never 
 Their own updaters (`herdr update`, `claude update`, `pi update`, `copilot update`, `agy`'s, and `treehouse update`) keep them current.
 
 **The pnpm and npm global tools and the agent skills** (`tools/node-tools.sh`) install on the profile's Node.js (below). See its `PNPM_PACKAGES` and `NPM_PACKAGES` arrays for the package lists and `ensure_skills` for the skill sources and pinned revision, migrated from the `agentic-devcontainer` Dockerfile.
-The devcontainer MCP helpers (`ui5mcp`, `fiori-mcp`, `playwright-mcp`, and `sap-note-search-mcp`) are provided by those pnpm globals. The companion `cloud-practitioner/agentic-devcontainer` configuration must launch these binaries directly to avoid per-agent `npx` wrappers and registry checks; this repo provisions the installs only. They follow the missing-only install and refresh policy above, rather than updating on each agent launch.
+The devcontainer MCP helpers (`ui5mcp`, `fiori-mcp`, `playwright-mcp`, and `sap-note-search-mcp`) are provided by those pnpm globals. The companion `meaningful-journey-lab/agentic-devcontainer` configuration must launch these binaries directly to avoid per-agent `npx` wrappers and registry checks; this repo provisions the installs only. They follow the missing-only install and refresh policy above, rather than updating on each agent launch.
 Yeoman and its generators must use npm, not pnpm: `yo` only discovers generators under npm's global prefix. The packages in `NPM_PACKAGES` use `--allow-scripts=mbt,mta`; on amd64, `@sap/cf-tools-local` is installed separately with `--allow-scripts=@sap/cf-tools-local`.
 
 **The AXI worker-orchestration tools** (`tools/node-tools.sh`) are the npm globals `gh-axi`, `chrome-devtools-axi`, `lavish-axi`, `tasks-axi`, and `quota-axi`, which an agent that dispatches workers uses for GitHub, the browser, visual review boards, the task backlog, and quota reads (with treehouse above).
@@ -243,7 +243,7 @@ Either `bin` is on every shell's `PATH` (below), so `yo`, `mbt`, and `mta` run, 
 Where Node.js and pnpm come from depends on the profile:
 
 - **WSL2 workstation**: `tools/node-tools.sh` first installs nvm with its official install script (`PROFILE=/dev/null`, so it never edits `~/.zshrc`, `~/.bashrc`, or `~/.profile`), then `nvm install --lts` as nvm's default, then `npm install -g pnpm`, the way [Microsoft's Node.js on WSL guide](https://learn.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-wsl) does it. The interactive workstation zsh loads nvm (`$NVM_DIR`, default `~/.nvm`), so `node`, `npm`, and `pnpm` are nvm's there. Every switch also links `$NVM_DIR/default` to nvm's default Node.js, and `$NVM_DIR/default/bin` is on every shell's `PATH` (see below), so scripts and `wsl.exe -e zsh -c ...` find them without loading nvm; after `nvm alias default ...`, switch again to move that link. An existing nvm default is reused, not upgraded. If it is older than the backpass/acpx requirements above, run `nvm install --lts` and `nvm alias default 'lts/*'`, then switch again. As that guide advises, don't install another Node.js alongside it.
-- **Devcontainer**: the image (`cloud-practitioner/agentic-devcontainer`) brings its own Node.js 24 and Corepack pnpm (with `PNPM_HOME`), so the container profile has no nvm and its activation keeps the image's `PATH` to find them. The dotfiles change lands first; a separate image change removes the tool installs afterwards. Until then both install the same globals idempotently, which is harmless; after that the container profile is their only source.
+- **Devcontainer**: the image (`meaningful-journey-lab/agentic-devcontainer`) brings its own Node.js 24 and Corepack pnpm (with `PNPM_HOME`), so the container profile has no nvm and its activation keeps the image's `PATH` to find them. The dotfiles change lands first; a separate image change removes the tool installs afterwards. Until then both install the same globals idempotently, which is harmless; after that the container profile is their only source.
 
 Both profiles set `PNPM_HOME` (unless already set, default `${XDG_DATA_HOME:-~/.local/share}/pnpm`, as pnpm itself) and put `~/.local/bin` (herdr, Claude Code, Pi, Copilot, Antigravity, treehouse), on the workstation `$NVM_DIR/default/bin` (or in the container `$NPM_CONFIG_PREFIX/bin`, default `~/.npm-global/bin`, which the profile also exports), then pnpm's global bin directories (`$PNPM_HOME/bin`, then `$PNPM_HOME` for older pnpm) on `PATH` right before `~/.nix-profile/bin` (or first, without it), once each.
 That puts them ahead of the Nix profile, the system directories, and the Windows `PATH` that WSL appends (`/mnt/c/...`), so a Nix-built `herdr` or a Windows Node.js or npm-global `claude`, `pi`, `copilot`, `agy`, `treehouse`, `node`, `npm`, or `pnpm` never shadows these.
@@ -381,7 +381,7 @@ image's static file: `Include ~/.ssh/config.d/*` and the same `*` defaults
 and `UserKnownHostsFile ~/.ssh/known_hosts`. It holds no private keys: the agent
 is the workstation's, and the rendered `~/.ssh/config.d/identities` holds the
 optional aliases plus the host-key policy include described below. A separate
-`cloud-practitioner/agentic-devcontainer` change will remove the Dockerfile's
+`meaningful-journey-lab/agentic-devcontainer` change will remove the Dockerfile's
 SSH file creation and `ssh-keyscan`; this dotfiles change does not remove them.
 
 The official host keys of `github.com` and `bitbucket.org` are committed in
@@ -471,7 +471,7 @@ exported public halves described in [Git identity](#git-identity); do not mount
 keys using those public halves and supplies its own SSH alias include for Git.
 
 Mount and socket wiring is managed separately in
-`cloud-practitioner/agentic-devcontainer`. Images that still mount `~/.ssh` or
+`meaningful-journey-lab/agentic-devcontainer`. Images that still mount `~/.ssh` or
 recreate hard-coded aliases must be adapted to the public-key-only contract
 before using identity sharing. Without the identity directory or a reachable
 forwarded agent, the switch warns with workstation setup guidance.
