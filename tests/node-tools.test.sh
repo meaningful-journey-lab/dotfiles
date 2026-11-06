@@ -48,6 +48,10 @@
 #   ~/.npm-global (or $NPM_CONFIG_PREFIX), no nvm; without pnpm node-tools
 #   reports the prerequisite failure and unproven policy while bash-tools
 #   still installs everything;
+# - the lavish skill: ~/.agents/skills/lavish and the Claude skills directory
+#   ($CLAUDE_CONFIG_DIR/skills when set) link to lavish-axi's bundled skill in
+#   the installed package; nothing is linked without the package, a dangling
+#   link of ours is removed, and other entries named lavish are never replaced;
 # - a failing pnpm, npm, or skills step is reported and fails the run but does
 #   not stop the other steps; broken mbt, a generator yo does not list, and
 #   a missing ServiceInfo cf plugin are warnings (the run still reports them
@@ -103,7 +107,7 @@ export REAL_NODE NODE_TOOLS_TEST_PATH=$PATH
 REAL_PNPM=$(command -v pnpm)
 export REAL_PNPM
 [ -n "$REAL_NODE" ] && [ -n "$REAL_PNPM" ] || fail "node and pnpm are required for configuration-consumer checks"
-unset NVM_DIR NVM_BIN NVM_INC PNPM_HOME XDG_DATA_HOME XDG_STATE_HOME NPM_CONFIG_PREFIX
+unset NVM_DIR NVM_BIN NVM_INC PNPM_HOME XDG_DATA_HOME XDG_STATE_HOME NPM_CONFIG_PREFIX CLAUDE_CONFIG_DIR
 
 # --- fakes --------------------------------------------------------------------
 
@@ -209,6 +213,11 @@ case "\$1 \$2" in
           pkg=\${pkg%@latest}
           mkdir -p "\$prefix/lib/node_modules/\$pkg" "\$prefix/bin"
           echo '{}' >"\$prefix/lib/node_modules/\$pkg/package.json"
+          # lavish-axi bundles its skill, like the real package.
+          if [ "\$pkg" = lavish-axi ]; then
+            mkdir -p "\$prefix/lib/node_modules/lavish-axi/skills/lavish"
+            echo "lavish skill \${NPM_FAKE_AXI_VERSION:-9.9.9}" >"\$prefix/lib/node_modules/lavish-axi/skills/lavish/SKILL.md"
+          fi
           # NPM_FAKE_AXI_VERSION is what the registry's latest is.
           sed "s/@VERSION@/\${NPM_FAKE_AXI_VERSION:-9.9.9}/" "$FIX/fake-axi" >"\$prefix/bin/\$pkg"
           chmod +x "\$prefix/bin/\$pkg"
@@ -997,7 +1006,9 @@ $QUIET_RERUN" ] || fail "a legacy Chrome CLI was not the only tool upgraded: $(c
     || fail "a switch that upgrades AXI tools failed: $out"
   [ "$(calls)" = "$AXI_ADD
 $QUIET_RERUN" ] || fail "tools below a floor were not all reinstalled, in one npm call: $(calls)"
-  [ "$out" = "node-tools: ${AXI_ADD#npm install -g }" ] || [ "$out" = "node-tools: $AXI_ADD" ] || fail "reinstalling AXI tools printed more than the npm line: $out"
+  # The reinstalled lavish-axi is the first package here, so its skill gets linked (see test_lavish_skill).
+  [ "$(grep -vc 'node-tools: linked .*/skills/lavish -> ' <<<"$out")" = 1 ] && [ "$(sed -n 1p <<<"$out")" = "node-tools: $AXI_ADD" ] \
+    || fail "reinstalling AXI tools printed more than the npm line and the lavish skill links: $out"
   for tool in gh-axi chrome-devtools-axi lavish-axi tasks-axi quota-axi; do
     [ "$("$bin/$tool" --version)" = "$tool 2.0.0" ] || fail "$tool was not reinstalled at the registry's latest"
   done
@@ -1055,6 +1066,64 @@ $QUIET_RERUN" ] || fail "workstation did not upgrade only legacy Chrome: $(calls
   [ "$("$home/.nvm/default/bin/chrome-devtools-axi" --version)" = "chrome-devtools-axi 9.9.9" ] \
     && [ -f "$home/.config/opencode/plugins/axi-chrome-devtools-axi.js" ] || fail "workstation did not upgrade Chrome and install its hook"
   pass "AXI tools: installed at @latest into npm's global prefix when missing or below their floors, in one call; left alone at or above them (no second copy next to the image's or Firstmate's); a floor missed after the install is reported; a failing install does not stop the other steps; the workstation uses nvm's prefix"
+}
+
+# The lavish skill: a link to lavish-axi's bundled skill, never a copy.
+test_lavish_skill() {
+  local home="$TMP_ROOT/lavish" out pkg dir
+  mkdir -p "$home"
+  pkg="$home/.npm-global/lib/node_modules/lavish-axi/skills/lavish"
+
+  # Fresh HOME: the package is installed by this run, then linked for Pi and Claude Code.
+  out=$(PNPM_HOME="$home/pnpm" run_tools "$home" container "$FIX/image:$BASE_PATH") || fail "lavish: a fresh switch failed: $out"
+  for dir in .agents/skills .claude/skills; do
+    [ -L "$home/$dir/lavish" ] && [ "$(readlink "$home/$dir/lavish")" = "$pkg" ] \
+      || fail "lavish: $dir/lavish is not a link to the installed package: $(ls -l "$home/$dir" 2>&1)"
+  done
+  [ "$(cat "$home/.claude/skills/lavish/SKILL.md")" = "lavish skill 9.9.9" ] || fail "lavish: the Claude link does not reach the skill"
+  : >"$NODE_TOOLS_LOG"
+  out=$(PNPM_HOME="$home/pnpm" run_tools "$home" container "$FIX/image:$BASE_PATH") || fail "lavish: a re-run failed: $out"
+  [ -z "$out" ] || fail "lavish: a re-run is not quiet: $out"
+
+  # A package upgrade changes the file behind the link, not the link.
+  echo "lavish skill 9.9.10" >"$pkg/SKILL.md"
+  [ "$(cat "$home/.agents/skills/lavish/SKILL.md")" = "lavish skill 9.9.10" ] || fail "lavish: the link does not follow a package upgrade"
+
+  # CLAUDE_CONFIG_DIR names the Claude skills directory; ~/.claude is not used.
+  home="$TMP_ROOT/lavish-ccd"
+  mkdir -p "$home"
+  out=$(CLAUDE_CONFIG_DIR="$home/claude-cfg" PNPM_HOME="$home/pnpm" run_tools "$home" container "$FIX/image:$BASE_PATH") \
+    || fail "lavish: a switch with CLAUDE_CONFIG_DIR failed: $out"
+  [ "$(cat "$home/claude-cfg/skills/lavish/SKILL.md")" = "lavish skill 9.9.9" ] || fail "lavish: not linked into \$CLAUDE_CONFIG_DIR/skills"
+  [ ! -e "$home/.claude/skills/lavish" ] || fail "lavish: ~/.claude/skills was used although CLAUDE_CONFIG_DIR is set"
+
+  # Package not installed (offline): no link, and no failure from the skill step.
+  home="$TMP_ROOT/lavish-none"
+  mkdir -p "$home"
+  out=$(NPM_FAKE_FAIL=1 PNPM_HOME="$home/pnpm" run_tools "$home" container "$FIX/image:$BASE_PATH") || true
+  [ ! -e "$home/.agents/skills/lavish" ] && [ ! -L "$home/.agents/skills/lavish" ] \
+    && [ ! -L "$home/.claude/skills/lavish" ] || fail "lavish: a link exists although the package is not installed"
+  assert_not_contains "$out" "lavish_skill" "lavish: the skill step failed without the package: $out"
+
+  # The package goes away: a dangling link of ours is removed, other entries stay.
+  home="$TMP_ROOT/lavish"
+  rm -rf "$home/.npm-global/lib/node_modules/lavish-axi" "$home/.npm-global/bin/lavish-axi"
+  mkdir -p "$home/.claude/skills/other"
+  ln -s /nowhere "$home/.agents/skills/stale"
+  out=$(NPM_FAKE_FAIL=1 PNPM_HOME="$home/pnpm" run_tools "$home" container "$FIX/image:$BASE_PATH") || true
+  [ ! -L "$home/.agents/skills/lavish" ] && [ ! -L "$home/.claude/skills/lavish" ] || fail "lavish: a dangling link stayed after the package was removed"
+  [ -L "$home/.agents/skills/stale" ] && [ -d "$home/.claude/skills/other" ] || fail "lavish: an unrelated skill entry was touched"
+
+  # An existing entry named lavish is never replaced.
+  home="$TMP_ROOT/lavish-own"
+  mkdir -p "$home/.agents/skills/lavish" "$home/.claude/skills"
+  echo own >"$home/.agents/skills/lavish/SKILL.md"
+  ln -s /nowhere "$home/.claude/skills/lavish"
+  out=$(PNPM_HOME="$home/pnpm" run_tools "$home" container "$FIX/image:$BASE_PATH") || fail "lavish: a switch with existing entries failed: $out"
+  [ "$(cat "$home/.agents/skills/lavish/SKILL.md")" = own ] && [ ! -L "$home/.agents/skills/lavish" ] || fail "lavish: an existing skill directory was replaced"
+  [ "$(readlink "$home/.claude/skills/lavish")" = /nowhere ] || fail "lavish: an unrelated link was replaced"
+  assert_contains "$out" "$home/.agents/skills/lavish already exists" "lavish: the kept entry is not reported: $out"
+  pass "lavish skill: ~/.agents/skills/lavish and the Claude skills directory (\$CLAUDE_CONFIG_DIR/skills when set) link to the installed lavish-axi package and follow its upgrades; nothing is linked without the package, a dangling link of ours is removed, and other entries are never replaced"
 }
 
 test_backpass_tools() {
@@ -1881,6 +1950,7 @@ test_container_and_failures
 test_step_failures_do_not_block
 test_smoke_checks_warn
 test_axi_tools
+test_lavish_skill
 test_backpass_tools
 test_paseo
 test_axi_hooks
