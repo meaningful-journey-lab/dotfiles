@@ -47,7 +47,9 @@
 #   whenever that version changes.
 #   --agent universal is required (--yes alone targets 50+ agent config
 #   directories), and the CLI reads owner/repo@X as a skill name, so there is
-#   no @latest.
+#   no @latest;
+# - the bundled lavish skill (ensure_lavish_skill); see README.md's
+#   "Upstream CLI tools" section for linking and refresh behavior.
 #
 # npm's global prefix: on the container $NPM_CONFIG_PREFIX, which the image
 # sets to ~/.npm-global (home.nix and this script default to it too; its bin
@@ -474,6 +476,62 @@ ensure_no_mistakes_skill() {
     || oops "cannot record the no-mistakes skill version in $NO_MISTAKES_SKILL_MARKER" || return 1
 }
 
+# Links the skill that lavish-axi's npm package ships ($1 = its directory, the
+# installed package's skills/lavish) as lavish into skills directory $2. The
+# link points at the installed package, not at a copy, so a package upgrade
+# updates it. Only a link of its own is ever replaced or removed: one that points
+# at a lavish-axi/skills/lavish directory, which is stale after a Node.js prefix
+# change. Anything else named lavish (a real directory, another skill, a link that
+# reaches the same skill) stays; a different one is reported.
+link_lavish_skill() {
+  local source=$1 dir=$2 path=$2/lavish current
+  if [ -L "$path" ]; then
+    current=$(readlink -- "$path")
+    [ "$current" != "$source" ] || return 0
+    case $current in
+      */lavish-axi/skills/lavish) ;;
+      *)
+        [ "$path" -ef "$source" ] \
+          || printf 'node-tools: warning: %s already exists, not linking it to %s\n' "$path" "$source" >&2
+        return 0
+        ;;
+    esac
+  elif [ -e "$path" ]; then
+    [ "$path" -ef "$source" ] || printf 'node-tools: warning: %s already exists, not linking it to %s\n' "$path" "$source" >&2
+    return 0
+  fi
+  mkdir -p -- "$dir" || oops "cannot create $dir for the lavish skill" || return 1
+  ln -sfn -- "$source" "$path" || oops "cannot link $path to $source" || return 1
+  say "linked $path -> $source"
+}
+
+# Removes the link $1/lavish when it is one of our own (a link into a
+# lavish-axi package) and its target is gone, so none stays dangling.
+drop_dangling_lavish_link() {
+  local path=$1/lavish
+  [ -L "$path" ] && [ ! -e "$path" ] || return 0
+  case $(readlink -- "$path") in
+    */lavish-axi/skills/lavish) rm -f -- "$path" && say "removed $path: lavish-axi is no longer installed there" ;;
+  esac
+}
+
+# The lavish skill for Pi (~/.agents/skills) and Claude Code, linked to the
+# installed lavish-axi package. Without the package (not installed yet, or the
+# package ships no skill) no link is made and a dangling one of ours goes.
+ensure_lavish_skill() {
+  local root source claude_dir=$HOME/.claude dir
+  case ${CLAUDE_CONFIG_DIR:-} in /*) claude_dir=${CLAUDE_CONFIG_DIR%/} ;; esac
+  root=$(npm root -g) || oops "npm root -g failed" || return 1
+  source=$root/lavish-axi/skills/lavish
+  for dir in "$SKILLS_DIR" "$claude_dir/skills"; do
+    if [ -f "$source/SKILL.md" ]; then
+      link_lavish_skill "$source" "$dir" || return 1
+    else
+      drop_dangling_lavish_link "$dir"
+    fi
+  done
+}
+
 ensure_skills() {
   command -v npx >/dev/null 2>&1 || oops "npx not found on PATH; cannot install the agent skills" || return 1
   [ -f "$SKILLS_DIR/explain-abap-code/SKILL.md" ] || skills_add arc-mcp/arc-1 || return 1
@@ -588,6 +646,7 @@ main() {
   step ensure_npm_globals
   step ensure_cf_tools_local
   step ensure_axi_tools
+  step ensure_lavish_skill
   step ensure_backpass_tools
   step ensure_paseo
   step ensure_axi_hooks
