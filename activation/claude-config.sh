@@ -18,7 +18,7 @@
 #
 # install (after linkGeneration):
 #   - settings.json: additive merge that never rewrites an owner value. Top-level
-#     keys (theme, statusLine) are added only when absent; the entries of
+#     keys (theme, statusLine, pluginConfigs) are added only when absent; the entries of
 #     extraKnownMarketplaces (the ixia marketplace) are added one by one inside
 #     an owner object that already has that key, never changing an entry the
 #     owner has; each hook is added

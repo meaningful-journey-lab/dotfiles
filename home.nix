@@ -2,6 +2,16 @@
 
 let
   dotfiles = "${config.home.homeDirectory}/.dotfiles";
+  # compact-adviser (suggests /compact at safe points) pinned to the tag
+  # compact-adviser-v0.1.14. Update by bumping rev and hash together. It is only
+  # a source copy: nothing installs or enables it, so a session loads it only
+  # when its launch passes --plugin-dir ~/.local/share/compact-adviser/packages/claude-mod.
+  compactAdviser = pkgs.fetchFromGitHub {
+    owner = "kunchenguid";
+    repo = "compact-adviser";
+    rev = "37fa1a665b8933de68c90014312060e862cf121a";
+    hash = "sha256-2jydttQ6BfkPn9CzfJlS5L/WtEVPQzvSBv2UGWxiM6g=";
+  };
   # The "container" profile drops the agent service and startup key loading so
   # the same shell/tools can be reused inside a devcontainer that borrows the
   # WSL2 host's forwarded agent instead. It keeps a smaller ~/.ssh/config that
@@ -470,6 +480,8 @@ in
   '';
   home.file.".claude/settings.json".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.claude/settings.json";
+  # Read-only pinned plugin source; README's "compact-adviser" section owns usage.
+  home.file.".local/share/compact-adviser".source = compactAdviser;
 
   # Keep Pi's credential and runtime state local by linking only authored files and directories.
   home.file.".pi/agent/themes".source =

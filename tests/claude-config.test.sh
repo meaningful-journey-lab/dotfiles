@@ -40,6 +40,8 @@
 # - the Ixia marketplace (no enabled plugin): added whole where the owner has no
 #   such key, one entry at a time inside an owner object, never over an owner
 #   entry (or a non-object owner value);
+# - compact-adviser's pluginConfigs budget: added once where the owner has no
+#   such key, never over an owner value;
 # - configured skills, settings.json or CLAUDE.md the owner linked back into
 #   ~/.claude: nothing deleted or re-pointed, no warning and no link loop,
 #   across repeated switches.
@@ -379,6 +381,46 @@ cat "$TMP_ROOT/s.json" >"$C/settings.json"
 activate "$C"
 jq -e '.extraKnownMarketplaces == null' "$C/settings.json" >/dev/null || fail "ixia: non-object owner value left alone"
 pass "ixia: owner's own entry and non-object value win"
+
+# compact-adviser's context budget (pluginConfigs): the dotfiles carry exactly
+# one entry, with a numeric budget and no mode override (the plugin default is
+# hint). It lands only in owner settings that have no pluginConfigs key; an
+# owner's own pluginConfigs, whatever its shape, is never touched.
+jq -e '.pluginConfigs == {"compact-adviser@inline": {options: {contextBudgetTokens: 150000}}}
+  and (.pluginConfigs["compact-adviser@inline"].options.contextBudgetTokens | type) == "number"
+  and (has("enabledPlugins") | not)' "$SRC_SETTINGS" >/dev/null ||
+  fail "pluginConfigs: the dotfiles settings hold only the compact-adviser@inline budget (a number) and enable no plugin"
+new_case
+owner_settings
+activate "$C"
+[ "$(jq -c '.pluginConfigs' "$C/settings.json")" = '{"compact-adviser@inline":{"options":{"contextBudgetTokens":150000}}}' ] ||
+  fail "pluginConfigs: added to owner settings that lack the key: $(jq -c '.pluginConfigs' "$C/settings.json")"
+state=$(snapshot "$C")
+activate "$C"
+[ "$(snapshot "$C")" = "$state" ] || fail "pluginConfigs: re-run is a no-op"
+pass "pluginConfigs: the budget is added once to owner settings that lack the key"
+
+new_case
+owner_settings
+jq '.pluginConfigs = {"compact-adviser@inline": {"options": {"contextBudgetTokens": 90000, "mode": "auto"}}}' "$C/settings.json" >"$TMP_ROOT/s.json"
+cat "$TMP_ROOT/s.json" >"$C/settings.json"
+activate "$C"
+jq -e '.pluginConfigs == {"compact-adviser@inline": {"options": {"contextBudgetTokens": 90000, "mode": "auto"}}}' "$C/settings.json" >/dev/null ||
+  fail "pluginConfigs: an owner's value is never overwritten: $(jq -c '.pluginConfigs' "$C/settings.json")"
+new_case
+owner_settings
+jq '.pluginConfigs = {"other@inline": {"options": {"x": 1}}}' "$C/settings.json" >"$TMP_ROOT/s.json"
+cat "$TMP_ROOT/s.json" >"$C/settings.json"
+activate "$C"
+jq -e '.pluginConfigs == {"other@inline": {"options": {"x": 1}}}' "$C/settings.json" >/dev/null ||
+  fail "pluginConfigs: an owner's other pluginConfigs entries stay as they are, with nothing added"
+new_case
+owner_settings
+jq '.pluginConfigs = null' "$C/settings.json" >"$TMP_ROOT/s.json"
+cat "$TMP_ROOT/s.json" >"$C/settings.json"
+activate "$C"
+jq -e '.pluginConfigs == null' "$C/settings.json" >/dev/null || fail "pluginConfigs: a non-object owner value is left alone"
+pass "pluginConfigs: an owner's own value is never overwritten"
 
 # No owner settings yet: a real file with the dotfiles settings.
 new_case
