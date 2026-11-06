@@ -54,6 +54,11 @@
 # moved or deleted, a real one in ~/.claude/skills is only ever moved, and a
 # real file where a ~/.claude link belongs is left in place with a warning.
 # Re-running is a no-op.
+#
+# install also checks the user settings Claude reads ($CLAUDE_CONFIG_DIR/settings.json,
+# else ~/.claude/settings.json) and warns, never edits, when they enable a plugin
+# of the ixia marketplace (any *@ixia id). Ixia plugins belong to IQX sessions only,
+# so they load per session (README "Ixia plugins"), never from the user file.
 set -euo pipefail
 
 log() { printf 'claude-config: %s\n' "$*"; }
@@ -288,6 +293,26 @@ configured_dir() {
   fi
 }
 
+# Warn, never edit, when the user settings $1/settings.json enable a plugin of the
+# ixia marketplace. Enabled at user scope, it would load in every Claude session.
+# The fix is `disable`, never `uninstall`, run outside $HOME and
+# /workspaces/wp (there "project" scope is the user file).
+warn_ixia_enabled() {
+  local file=$1/settings.json
+  [ -f "$file" ] && is_json_object "$file" || return 0
+  jq -e '[.enabledPlugins | objects | to_entries[]
+    | select(.value == true and (.key | endswith("@ixia")))] | length > 0' "$file" >/dev/null 2>&1 || return 0
+  warn "$file enables Ixia plugins at user scope, so they load in every Claude session (they are for IQX sessions only)"
+  # shellcheck disable=SC2016
+  {
+    printf 'claude-config: warning: not changed here. Run these from a neutral directory, not from $HOME or /workspaces/wp:\n'
+    printf 'claude-config:   cd "$(mktemp -d)"\n'
+    printf 'claude-config:   claude plugin disable ixia-stratex@ixia --scope user\n'
+    printf 'claude-config:   claude plugin disable ixia-onelist@ixia --scope user\n'
+    printf 'claude-config: warning: use disable, never uninstall. See README "Ixia plugins".\n'
+  } >&2
+}
+
 unlink_home_links() {
   local dir=$1 name
   for name in settings.json CLAUDE.md; do
@@ -326,6 +351,7 @@ main() {
       esac
       dir=$(configured_dir)
       [ -z "$dir" ] || install_into "$dir" "$2" "$3"
+      warn_ixia_enabled "${dir:-$HOME/.claude}"
       ;;
     *) usage ;;
   esac

@@ -7,7 +7,9 @@
 # must be real, not a copy of skills/, because the review-panel skill finds its
 # reviewer agents/ two levels above it. Claude Code needs none of
 # this: it fetches and updates the plugin itself (home/.claude/settings.json
-# registers the marketplace; an IQX repository's own settings enable the plugin).
+# registers the marketplace and enables no plugin; the plugins load per session
+# through the `claude` Zsh function, a Firstmate home's config file, or an IQX
+# repository's own settings if IQX adds them - see README's Ixia plugins section).
 #
 # Run by every Home Manager switch (home.nix `home.activation.ixiaMarketplace`),
 # so a devcontainer rebuild, which loses ~/.local/share, gets the clone back

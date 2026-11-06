@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Behavior checks for the Ixia plugin marketplace on Pi (Claude Code's half is
-# in tests/claude-config.test.sh): tools/ixia-marketplace.sh, which keeps a real
-# shallow clone that Pi loads on demand (`pi-ixia`, excluding feedback;
-# no Pi setting names it). Needs bash and git. Run: bash tests/ixia-plugins.test.sh
+# Behavior checks for the Ixia plugin marketplace on Pi and for how Claude Code
+# loads the plugins (the user-settings warning is in tests/claude-config.test.sh):
+# tools/ixia-marketplace.sh, which keeps a real shallow clone that Pi loads on
+# demand (`pi-ixia`, excluding feedback; no Pi setting names it), and the `claude`
+# Zsh function, which enables the plugins for one session in an IQX Bitbucket
+# checkout. Needs bash and git. Run: bash tests/ixia-plugins.test.sh
 #
 # Everything runs in a scratch HOME and clone directory, against a local fake
 # marketplace repository (file:// URL, so --depth applies); nothing contacts
@@ -10,6 +12,11 @@
 #
 # Coverage:
 # - home.nix runs the clone step in the Linux and macOS profiles;
+# - the `claude` Zsh function, against a fake claude: the Bitbucket SSH, SSH host
+#   alias and HTTPS origins under iqxbusiness add the enabledPlugins settings
+#   before the caller's arguments; a GitHub origin, another Bitbucket workspace,
+#   no repository, no remote, and an explicit --settings (either form) pass the
+#   arguments through unchanged; the exit status is kept;
 # - tools/ixia-marketplace.sh: a fresh shallow clone (the agents/ directory the
 #   review-panel skill needs sits two levels above the skills), a no-op re-run,
 #   fast-forward to new upstream commits (including several in a row, which a
@@ -96,6 +103,94 @@ SH
     PI_EXIT=7 run_pi_ixia
     [ "$PI_RC" = 7 ] || fail "pi-ixia: preserves Pi exit status: $PI_RC: $PI_OUT"
     pass "pi-ixia excludes feedback, forwards arguments and exit status, and warns without usable skills"
+
+    # The `claude` function, with a fake claude that records its arguments.
+    CL_BIN="$TMP_ROOT/claude-bin"
+    mkdir -p "$CL_BIN"
+    cat >"$CL_BIN/claude" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$@" >"$CLAUDE_ARGS_LOG"
+exit "${CLAUDE_EXIT:-0}"
+SH
+    chmod +x "$CL_BIN/claude"
+    IXIA_SETTINGS='{"enabledPlugins":{"ixia-stratex@ixia":true,"ixia-onelist@ixia":true}}'
+    run_claude() { # <dir> [claude arguments...]
+      local dir=$1
+      shift
+      rm -f "$TMP_ROOT/claude-args"
+      # shellcheck disable=SC2016
+      CLAUDE_OUT=$(env -i HOME="$PI_HOME" PATH="$CL_BIN:$PATH" TERM=xterm GIT_CEILING_DIRECTORIES="$TMP_ROOT" \
+        PI_INIT="$TMP_ROOT/init.zsh" CLAUDE_DIR="$dir" CLAUDE_ARGS_LOG="$TMP_ROOT/claude-args" CLAUDE_EXIT="${CLAUDE_EXIT:-0}" \
+        zsh -f -i -c 'source "$PI_INIT"; cd "$CLAUDE_DIR" && claude "$@"' -- "$@" </dev/null 2>&1)
+      CLAUDE_RC=$?
+    }
+    claude_repo() { # <name> [origin url]
+      local repo="$TMP_ROOT/claude-repos/$1"
+      dotfiles_git_init_commit "$repo"
+      [ -z "${2:-}" ] || git -C "$repo" remote add origin "$2"
+      printf '%s\n' "$repo"
+    }
+    expect_claude_args() { # <message> <argument>...
+      local message=$1
+      shift
+      [ "$CLAUDE_RC" = 0 ] || fail "claude $message: exit 0, got $CLAUDE_RC: $CLAUDE_OUT"
+      printf '%s\n' "$@" >"$TMP_ROOT/expected-claude-args"
+      cmp -s "$TMP_ROOT/expected-claude-args" "$TMP_ROOT/claude-args" ||
+        fail "claude $message: arguments were: $(tr '\n' '|' <"$TMP_ROOT/claude-args" 2>/dev/null)"
+    }
+
+    for origin in \
+      git@bitbucket.org:iqxbusiness/iqx.example.git \
+      git@bitbucket.org-work:iqxbusiness/iqx.example.git \
+      https://bitbucket.org/iqxbusiness/iqx.example.git \
+      https://someone@bitbucket.org/iqxbusiness/iqx.example.git; do
+      repo=$(claude_repo "bb-$(printf '%s' "$origin" | tr -c 'A-Za-z0-9\n' -)" "$origin")
+      run_claude "$repo" --model sonnet 'task with spaces'
+      expect_claude_args "in an iqxbusiness checkout ($origin): the plugins are enabled for the session" \
+        --settings "$IXIA_SETTINGS" --model sonnet 'task with spaces'
+      mkdir -p "$repo/sub/dir"
+      run_claude "$repo/sub/dir"
+      expect_claude_args "in a subdirectory of an iqxbusiness checkout ($origin): the plugins are enabled" \
+        --settings "$IXIA_SETTINGS"
+    done
+    jq -e . <<<"$IXIA_SETTINGS" >/dev/null || fail "claude: the settings argument is valid JSON"
+
+    github=$(claude_repo github git@github.com:meaningful-journey-lab/dotfiles.git)
+    run_claude "$github" --model sonnet
+    expect_claude_args "in a GitHub checkout: arguments unchanged" --model sonnet
+    other=$(claude_repo other-workspace git@bitbucket.org:someoneelse/iqx.example.git)
+    run_claude "$other" --model sonnet
+    expect_claude_args "in another Bitbucket workspace: arguments unchanged" --model sonnet
+    lookalike=$(claude_repo lookalike https://github.com/me/bitbucket.org-iqxbusiness.git)
+    run_claude "$lookalike"
+    expect_claude_args "with iqxbusiness only in a GitHub repository name: arguments unchanged"
+    noremote=$(claude_repo no-remote)
+    run_claude "$noremote" --version
+    expect_claude_args "in a repository without origin: arguments unchanged" --version
+    mkdir -p "$TMP_ROOT/not-a-repo"
+    run_claude "$TMP_ROOT/not-a-repo" --version
+    expect_claude_args "outside a repository: arguments unchanged" --version
+    run_claude "$TMP_ROOT/not-a-repo"
+    expect_claude_args "outside a repository, no arguments: no arguments"
+
+    bb=$(claude_repo bb-settings git@bitbucket.org:iqxbusiness/iqx.example.git)
+    run_claude "$bb" --settings '{"theme":"dark"}' --model sonnet
+    expect_claude_args "with an explicit --settings in an iqxbusiness checkout: unchanged" \
+      --settings '{"theme":"dark"}' --model sonnet
+    run_claude "$bb" --model sonnet --settings=/tmp/own-settings.json
+    expect_claude_args "with --settings=<file> in an iqxbusiness checkout: unchanged" \
+      --model sonnet --settings=/tmp/own-settings.json
+    CLAUDE_EXIT=7 run_claude "$bb"
+    [ "$CLAUDE_RC" = 7 ] || fail "claude: preserves the exit status: $CLAUDE_RC: $CLAUDE_OUT"
+    CLAUDE_EXIT=0
+    run_claude "$bb" -p 'check --settings in a prompt'
+    expect_claude_args "with the word --settings only inside another argument: the plugins are enabled" \
+      --settings "$IXIA_SETTINGS" -p 'check --settings in a prompt'
+
+    # `env ... claude` (Firstmate launches) and `command claude` skip the function.
+    PATH="$CL_BIN:$PATH" env CLAUDE_ARGS_LOG="$TMP_ROOT/claude-args" claude --direct
+    [ "$(cat "$TMP_ROOT/claude-args")" = --direct ] || fail "claude: env ... claude never goes through the function"
+    pass "claude enables the Ixia plugins only in an iqxbusiness Bitbucket checkout and keeps an explicit --settings"
   else
     pass "pi-ixia checks # SKIP zsh not on PATH"
   fi
