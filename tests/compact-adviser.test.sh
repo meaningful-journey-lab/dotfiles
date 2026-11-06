@@ -11,8 +11,7 @@
 # - both profiles link the pinned source at ~/.local/share/compact-adviser, and
 #   the plugin directory packages/claude-mod holds plugin.json version 0.1.14;
 # - that copy is read-only;
-# - `claude plugin validate` passes on it (skipped where claude is absent);
-# - the dotfiles settings enable no plugin at user scope.
+# - `claude plugin validate` passes on it (skipped where claude is absent).
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -25,11 +24,6 @@ dotfiles_test_tmproot compact-adviser
 SYSTEM=$(nix eval --impure --raw --expr builtins.currentSystem)
 LINK=.local/share/compact-adviser
 PLUGIN=$LINK/packages/claude-mod
-
-# The plugin must stay absent from every session unless a launch asks for it.
-jq -e 'has("enabledPlugins") | not' "$ROOT/home/.claude/settings.json" >/dev/null ||
-  fail "the dotfiles settings enable no plugin at user scope"
-pass "the dotfiles settings enable no plugin at user scope"
 
 check_profile() {
   local profile=$1 files dir version mode

@@ -467,8 +467,8 @@ tool that reads those files would get it. Never save it through the plugin's
 Create the file yourself, in a plain terminal, without typing the key on a
 command line:
 
-```sh
-install -d -m 700 /workspaces/wp/.secrets/compact-adviser
+```zsh
+install -d -m 700 /workspaces/wp/.secrets /workspaces/wp/.secrets/compact-adviser
 ( umask 077; read -rs 'k?TypeSafe API key: ' && printf 'TYPESAFE_API_KEY=%s\n' "$k" > /workspaces/wp/.secrets/compact-adviser/typesafe.env; unset k ); echo
 ```
 
