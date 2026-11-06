@@ -18,13 +18,13 @@
 #
 # install (after linkGeneration):
 #   - settings.json: additive merge that never rewrites an owner value. Top-level
-#     keys (theme, statusLine, pluginConfigs) are added only when absent; the entries of
-#     extraKnownMarketplaces (the ixia marketplace) are added one by one inside
-#     an owner object that already has that key, never changing an entry the
-#     owner has; each hook is added
-#     only when no hook for the same event already runs its command. Written
-#     only when that changes something, atomically and keeping the file mode,
-#     after a one-time byte-for-byte settings.json.pre-dotfiles-<epoch> backup.
+#     keys (theme, statusLine, pluginConfigs) are added only when absent; the
+#     entries of extraKnownMarketplaces (the ixia marketplace) are added one by
+#     one inside an owner object that already has that key, never changing an
+#     entry the owner has; each hook is added only when no hook for the same
+#     event already runs its command. Written only when that changes
+#     something, atomically and keeping the file mode, after a one-time
+#     byte-for-byte settings.json.pre-dotfiles-<epoch> backup.
 #   - CLAUDE.md: linked to the dotfiles copy only when absent.
 #   - ~/.claude/settings.json and ~/.claude/CLAUDE.md, just linked by Home
 #     Manager, are re-pointed into the configured directory, so installers that
