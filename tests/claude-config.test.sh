@@ -40,6 +40,10 @@
 # - the Ixia marketplace (no enabled plugin): added whole where the owner has no
 #   such key, one entry at a time inside an owner object, never over an owner
 #   entry (or a non-object owner value);
+# - Ixia plugins enabled in the user settings (an earlier /plugin install): a
+#   warning with the two disable commands on every switch, with or without
+#   CLAUDE_CONFIG_DIR, and the settings file is never written; disabled
+#   plugins and other marketplaces' plugins stay silent;
 # - compact-adviser's pluginConfigs budget: added once where the owner has no
 #   such key, never over an owner value;
 # - configured skills, settings.json or CLAUDE.md the owner linked back into
@@ -381,6 +385,52 @@ cat "$TMP_ROOT/s.json" >"$C/settings.json"
 activate "$C"
 jq -e '.extraKnownMarketplaces == null' "$C/settings.json" >/dev/null || fail "ixia: non-object owner value left alone"
 pass "ixia: owner's own entry and non-object value win"
+
+# Ixia plugins enabled in the user settings (an earlier /plugin install): every
+# switch warns and prints the two disable commands, and never edits the file.
+# Disabled, or another marketplace's plugin, is silent.
+IXIA_DISABLE_STRATEX='claude plugin disable ixia-stratex@ixia --scope user'
+IXIA_DISABLE_ONELIST='claude plugin disable ixia-onelist@ixia --scope user'
+new_case
+owner_settings
+activate "$C"
+assert_not_contains "$OUT" "Ixia plugins" "ixia warning: none while the user settings enable no Ixia plugin"
+for enabled in '{"ixia-stratex@ixia": true, "ixia-onelist@ixia": true}' '{"ixia-onelist@ixia": true}' '{"corp-tool@corp": true, "ixia-stratex@ixia": true}'; do
+  jq --argjson e "$enabled" '.enabledPlugins = $e' "$C/settings.json" >"$TMP_ROOT/s.json"
+  cat "$TMP_ROOT/s.json" >"$C/settings.json"
+  state=$(snapshot "$C")
+  activate "$C"
+  assert_contains "$OUT" "warning: $C/settings.json enables Ixia plugins at user scope" "ixia warning ($enabled): names the file"
+  assert_contains "$OUT" "$IXIA_DISABLE_STRATEX" "ixia warning ($enabled): prints the stratex disable command"
+  assert_contains "$OUT" "$IXIA_DISABLE_ONELIST" "ixia warning ($enabled): prints the onelist disable command"
+  # shellcheck disable=SC2016
+  assert_contains "$OUT" 'cd "$(mktemp -d)"' "ixia warning ($enabled): asks for a neutral directory"
+  assert_contains "$OUT" "never uninstall" "ixia warning ($enabled): says disable, never uninstall"
+  [ "$(snapshot "$C")" = "$state" ] || fail "ixia warning ($enabled): the settings file and its directory are never written"
+done
+jq '.enabledPlugins = {"ixia-stratex@ixia": false, "ixia-onelist@ixia": false, "corp-tool@corp": true}' "$C/settings.json" >"$TMP_ROOT/s.json"
+cat "$TMP_ROOT/s.json" >"$C/settings.json"
+activate "$C"
+assert_not_contains "$OUT" "Ixia plugins" "ixia warning: none once the plugins are disabled, or for another marketplace"
+assert_not_contains "$OUT" "warning" "ixia warning: no warning at all after the plugins are disabled, got: $OUT"
+pass "ixia warning: enabled Ixia plugins at user scope print the disable commands and the file is never written"
+
+# CLAUDE_CONFIG_DIR unset: the user settings are ~/.claude/settings.json.
+new_case
+rm "$H/.claude/settings.json"
+printf '{"enabledPlugins": {"ixia-stratex@ixia": true}}\n' >"$H/.claude/settings.json"
+state=$(snapshot "$H")
+OUT=$(step - install "$SRC_SETTINGS" "$SRC_AGENTS") || fail "ixia warning (unset): install exited non-zero: $OUT"
+assert_contains "$OUT" "warning: $H/.claude/settings.json enables Ixia plugins at user scope" "ixia warning (unset): names ~/.claude/settings.json"
+assert_contains "$OUT" "$IXIA_DISABLE_STRATEX" "ixia warning (unset): prints the disable command"
+[ "$(snapshot "$H")" = "$state" ] || fail "ixia warning (unset): nothing under HOME is written"
+# Unreadable or unusual settings never break the switch.
+for content in '{ "enabledPlugins": ' '{"enabledPlugins": ["ixia-stratex@ixia"]}' '{"enabledPlugins": null}' '[]'; do
+  printf '%s\n' "$content" >"$H/.claude/settings.json"
+  OUT=$(step - install "$SRC_SETTINGS" "$SRC_AGENTS") || fail "ixia warning (unset, $content): install exited non-zero: $OUT"
+  assert_not_contains "$OUT" "Ixia plugins" "ixia warning (unset, $content): no warning"
+done
+pass "ixia warning: the unset case reads ~/.claude/settings.json, and odd settings stay silent"
 
 # compact-adviser's context budget (pluginConfigs): the dotfiles carry exactly
 # one entry, with a numeric budget and no mode override (the plugin default is

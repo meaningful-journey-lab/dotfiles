@@ -327,6 +327,28 @@ in
         fi
         pi "''${skills[@]}" "$@"
       }
+      # Loads the Ixia plugins for this session only, in an IQX Bitbucket checkout
+      # (origin on bitbucket.org under iqxbusiness: SSH, an SSH host alias such as
+      # bitbucket.org-work, or HTTPS). They are not enabled at user level, so every
+      # other session loads none. An explicit --settings argument wins unchanged.
+      # Firstmate launches run `env ... claude`, which skips this function.
+      claude() {
+        local arg url ixia_origin='bitbucket\.org[^:/]*[:/]iqxbusiness/'
+        for arg in "$@"; do
+          case "$arg" in
+            --settings | --settings=*)
+              command claude "$@"
+              return
+              ;;
+          esac
+        done
+        url=$(command git config --get remote.origin.url 2>/dev/null)
+        if [[ "$url" =~ $ixia_origin ]]; then
+          command claude --settings '{"enabledPlugins":{"ixia-stratex@ixia":true,"ixia-onelist@ixia":true}}' "$@"
+        else
+          command claude "$@"
+        fi
+      }
     '';
     shellAliases = {
       ".." = "cd ..";
@@ -508,7 +530,8 @@ in
   # activation can see that variable. When it points elsewhere,
   # activation/claude-config.sh installs the Claude files into it and re-points
   # the two ~/.claude links above there, dropping its own links again before
-  # the next collision check. Unset, it does nothing.
+  # the next collision check. Unset, it changes nothing; install still reads
+  # the user settings and warns (never edits) when they enable an Ixia plugin.
   home.activation.claudeConfigUnlink = lib.hm.dag.entryBefore [ "checkLinkTargets" ] ''
     run ${pkgs.bash}/bin/bash ${./activation/claude-config.sh} unlink
   '';
