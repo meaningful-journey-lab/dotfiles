@@ -48,11 +48,8 @@
 #   --agent universal is required (--yes alone targets 50+ agent config
 #   directories), and the CLI reads owner/repo@X as a skill name, so there is
 #   no @latest;
-# - the lavish skill: lavish-axi's npm package bundles the skill, version-matched
-#   to the CLI, at skills/lavish. It is linked as `lavish` into ~/.agents/skills
-#   (Pi) and into Claude Code's skills directory ($CLAUDE_CONFIG_DIR/skills when
-#   that names an absolute path, else ~/.claude/skills), pointing at the installed
-#   package, so it follows every CLI upgrade (ensure_lavish_skill).
+# - the bundled lavish skill (ensure_lavish_skill); see README.md's
+#   "Upstream CLI tools" section for linking and refresh behavior.
 #
 # npm's global prefix: on the container $NPM_CONFIG_PREFIX, which the image
 # sets to ~/.npm-global (home.nix and this script default to it too; its bin
