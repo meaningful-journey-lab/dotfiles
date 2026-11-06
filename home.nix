@@ -481,7 +481,7 @@ in
   home.file.".claude/settings.json".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.claude/settings.json";
   # Read-only pinned plugin source; README's "compact-adviser" section owns usage.
-  home.file.".local/share/compact-adviser".source = compactAdviser;
+  home.file.".local/share/compact-adviser" = lib.mkIf pkgs.stdenv.isLinux { source = compactAdviser; };
 
   # Keep Pi's credential and runtime state local by linking only authored files and directories.
   home.file.".pi/agent/themes".source =

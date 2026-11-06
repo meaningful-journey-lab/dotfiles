@@ -32,7 +32,7 @@ jq -e 'has("enabledPlugins") | not' "$ROOT/home/.claude/settings.json" >/dev/nul
 pass "the dotfiles settings enable no plugin at user scope"
 
 check_profile() {
-  local profile=$1 files dir version
+  local profile=$1 files dir version mode
   files=$(nix build --no-link --print-out-paths \
     "$ROOT#homeConfigurations.\"$profile\".config.home-files") \
     || fail "$profile: home-files build failed"
@@ -44,7 +44,8 @@ check_profile() {
   [ "$(jq -r '.name' "$dir/.claude-plugin/plugin.json")" = compact-adviser ] ||
     fail "$profile: plugin.json is named compact-adviser"
   [ -f "$dir/hooks/register.ts" ] || fail "$profile: the hooks module is present"
-  [ ! -w "$dir/.claude-plugin/plugin.json" ] || fail "$profile: the plugin copy is read-only"
+  mode=$(stat -c %a "$dir/.claude-plugin/plugin.json")
+  case $mode in *[2367]*) fail "$profile: the plugin copy is read-only, got mode $mode" ;; esac
   pass "$profile: ~/$PLUGIN is the read-only plugin, version $version"
 
   if command -v claude >/dev/null 2>&1; then
