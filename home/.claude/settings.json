@@ -44,6 +44,13 @@
     }
   },
   "model": "opus",
+  "pluginConfigs": {
+    "compact-adviser@inline": {
+      "options": {
+        "contextBudgetTokens": 150000
+      }
+    }
+  },
   "extraKnownMarketplaces": {
     "ixia": {
       "source": {

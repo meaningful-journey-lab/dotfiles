@@ -454,6 +454,23 @@ name order, silently. The rules:
   group and others cannot write; use `chmod 600`.
 - A file with a syntax error is skipped whole, and nothing a file prints is
   ever shown.
+- Only top-level `*.env` files load. A file in a subfolder of `.secrets` is not
+  auto-exported, so a secret can stay out of every shell. Use a subfolder for a
+  secret that only one program may read.
+
+The TypeSafe key for [compact-adviser](#compact-adviser-claude-code) is such a
+secret. It lives at `/workspaces/wp/.secrets/compact-adviser/typesafe.env`
+(variable `TYPESAFE_API_KEY`, folder mode 700, file mode 600). Never put the key
+at the top level of `.secrets` or in a home `.env` file: every shell and every
+tool that reads those files would get it. Never save it through the plugin's
+`/compact-adviser` key prompt: that writes it in clear text to `settings.json`.
+Create the file yourself, in a plain terminal, without typing the key on a
+command line:
+
+```zsh
+install -d -m 700 /workspaces/wp/.secrets /workspaces/wp/.secrets/compact-adviser
+( umask 077; read -rs 'k?TypeSafe API key: ' && printf 'TYPESAFE_API_KEY=%s\n' "$k" > /workspaces/wp/.secrets/compact-adviser/typesafe.env; unset k ); echo
+```
 
 `bash tests/secrets-env.test.sh` checks these rules.
 
@@ -693,6 +710,34 @@ On macOS, load the Bitbucket work key into the SSH agent with `ssh-add ~/.ssh/id
 - **The ixia `feedback` skill opens a pull request in Duncan's marketplace repository.** Agents and workers must not run it (nor `/ixia-stratex:feedback`); it is for a person giving feedback. The [shared agent policy](#make-it-yours) says so and limits plan-gate and review-panel to IQX Bitbucket work. `pi-ixia` also excludes `feedback` from its per-skill load arguments.
 
 `bash tests/ixia-plugins.test.sh` and `bash tests/claude-config.test.sh` check the behaviour (local fake repository, no Bitbucket).
+
+## compact-adviser (Claude Code)
+
+[compact-adviser](https://github.com/kunchenguid/compact-adviser) suggests
+`/compact` at safe points in a Claude Code session. It sends checkpoint context
+to TypeSafe with a key that you supply (see [Secrets (Linux)](#secrets-linux)).
+These dotfiles provide the plugin source and nothing more. The plugin is off
+everywhere until a launch asks for it.
+
+- `home.nix` fetches the source pinned to the tag `compact-adviser-v0.1.14`
+  (revision `37fa1a665b8933de68c90014312060e862cf121a`, with its Nix hash). It
+  links the source, read-only, at `~/.local/share/compact-adviser`. The plugin
+  directory is `~/.local/share/compact-adviser/packages/claude-mod`. This works
+  in both Linux profiles (the devcontainer and the WSL2 workstation).
+- Nothing runs `claude plugin install` or `claude plugin marketplace add`, and
+  nothing enables the plugin at user scope. A session loads the plugin only when
+  its launch passes `--plugin-dir ~/.local/share/compact-adviser/packages/claude-mod`.
+  The plugin also needs `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` in that launch.
+- `home/.claude/settings.json` sets `pluginConfigs."compact-adviser@inline"` to a
+  context budget of 150000 tokens. The mode stays at the plugin default (`hint`).
+  This setting has no effect in a session that does not load the plugin. When
+  `$CLAUDE_CONFIG_DIR` points elsewhere, the merge adds this key only while the
+  owner has no `pluginConfigs` key. It never overwrites an owner value.
+- To update, change `rev` and `hash` together in `home.nix`, then switch.
+
+`bash tests/compact-adviser.test.sh` checks the link, the plugin version, and
+`claude plugin validate`. `bash tests/claude-config.test.sh` checks the
+settings merge.
 
 ## Notes
 

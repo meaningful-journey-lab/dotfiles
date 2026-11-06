@@ -15,6 +15,9 @@
 #   group- or world-writable, symlinked, unreadable and non-.env files are
 #   skipped; a file with a syntax error is skipped whole without stopping the
 #   files after it; nothing a file prints reaches the shell's output;
+# - a file in a subfolder of ~/.secrets (a scoped secret, such as
+#   compact-adviser/typesafe.env) is not exported, because the glob reads only
+#   top-level *.env files;
 # - the loader leaves no variable or helper function behind.
 set -u
 
@@ -29,7 +32,7 @@ SYSTEM=$(nix eval --impure --raw --expr builtins.currentSystem)
 # Root reads a 000 file or folder anyway, so those cases need a normal user.
 [ "$(id -u)" -ne 0 ] && AS_USER=1 || AS_USER=
 
-VARS=(GOOD ORDER NOISY AFTER_SYNTAX SYNTAX GROUPW WORLDW LINK UNREADABLE TXT)
+VARS=(GOOD ORDER NOISY AFTER_SYNTAX SYNTAX GROUPW WORLDW LINK UNREADABLE TXT SUBDIR)
 # shellcheck disable=SC2016
 PROBE='
   for v in '"${VARS[*]}"'; do
@@ -131,10 +134,14 @@ if then fi ('
   env_file "$home/link-target.env" 600 'export DOTFILES_SECRET_LINK=loaded'
   ln -s ../link-target.env "$s/62-link.env"
   env_file "$s/64-txt.env.txt" 600 'export DOTFILES_SECRET_TXT=loaded'
+  # A scoped secret: a 700 subfolder holding an owner-only *.env file, which the
+  # loader must never export (README's Secrets section names compact-adviser).
+  mkdir -m 700 "$s/compact-adviser"
+  env_file "$s/compact-adviser/typesafe.env" 600 'export DOTFILES_SECRET_SUBDIR=loaded'
   if [ -n "$AS_USER" ]; then
     env_file "$s/63-unreadable.env" 000 'export DOTFILES_SECRET_UNREADABLE=loaded'
   fi
-  probe "$profile: a 700 ~/.secrets folder loads only its owner-only *.env files, in order, silently" \
+  probe "$profile: a 700 ~/.secrets folder loads only its top-level owner-only *.env files, in order, silently (a file in a subfolder is not exported)" \
     "$home" "$(expected GOOD=good ORDER=good-then-order NOISY=loaded AFTER_SYNTAX=loaded)"
 }
 
