@@ -187,9 +187,17 @@ SH
     expect_claude_args "with the word --settings only inside another argument: the plugins are enabled" \
       --settings "$IXIA_SETTINGS" -p 'check --settings in a prompt'
 
-    # `env ... claude` (Firstmate launches) and `command claude` skip the function.
-    PATH="$CL_BIN:$PATH" env CLAUDE_ARGS_LOG="$TMP_ROOT/claude-args" claude --direct
-    [ "$(cat "$TMP_ROOT/claude-args")" = --direct ] || fail "claude: env ... claude never goes through the function"
+    # `env ... claude` (Firstmate launches) and `command claude` bypass the function,
+    # even inside an iqxbusiness checkout where the function would add --settings.
+    for form in "env claude" "command claude"; do
+      rm -f "$TMP_ROOT/claude-args"
+      # shellcheck disable=SC2016
+      env -i HOME="$PI_HOME" PATH="$CL_BIN:$PATH" TERM=xterm GIT_CEILING_DIRECTORIES="$TMP_ROOT" \
+        PI_INIT="$TMP_ROOT/init.zsh" CLAUDE_DIR="$bb" CLAUDE_ARGS_LOG="$TMP_ROOT/claude-args" CLAUDE_FORM="$form" \
+        zsh -f -i -c 'source "$PI_INIT"; cd "$CLAUDE_DIR" && eval "$CLAUDE_FORM --direct"' </dev/null >/dev/null 2>&1
+      CLAUDE_RC=$?
+      expect_claude_args "$form in an iqxbusiness checkout never goes through the function" --direct
+    done
     pass "claude enables the Ixia plugins only in an iqxbusiness Bitbucket checkout and keeps an explicit --settings"
   else
     pass "pi-ixia checks # SKIP zsh not on PATH"

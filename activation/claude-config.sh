@@ -10,8 +10,9 @@
 # ~/.claude/CLAUDE.md into the dotfiles checkout with plain home.file entries,
 # and runs this script around Home Manager's own link steps.
 #
-# CLAUDE_CONFIG_DIR unset, empty, or naming ~/.claude: both modes do nothing,
-# so those home.file links and Home Manager's collision handling are all there is.
+# CLAUDE_CONFIG_DIR unset, empty, or naming ~/.claude: nothing is linked, moved
+# or written, so those home.file links and Home Manager's collision handling are
+# all there is. install still reads the user settings for the Ixia warning below.
 #
 # Any other CLAUDE_CONFIG_DIR (the devcontainer points it at the workspace),
 # which may already hold the owner's own real files:

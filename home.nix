@@ -530,7 +530,8 @@ in
   # activation can see that variable. When it points elsewhere,
   # activation/claude-config.sh installs the Claude files into it and re-points
   # the two ~/.claude links above there, dropping its own links again before
-  # the next collision check. Unset, it does nothing.
+  # the next collision check. Unset, it changes nothing; install still reads
+  # the user settings and warns (never edits) when they enable an Ixia plugin.
   home.activation.claudeConfigUnlink = lib.hm.dag.entryBefore [ "checkLinkTargets" ] ''
     run ${pkgs.bash}/bin/bash ${./activation/claude-config.sh} unlink
   '';
