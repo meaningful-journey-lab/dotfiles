@@ -80,7 +80,7 @@ cat >"$WS/.config/dotfiles/identity.env" <<'ENVFILE'
 # a comment
 IDENTITIES="gh_personal gh_work bb_work"
 gh_personal_HOST=github.com
-gh_personal_OWNERS="cloud-practitioner"
+gh_personal_OWNERS="example-owner"
 gh_personal_KEY=~/.ssh/id_ed25519_gh_personal
 gh_personal_NAME="Test Personal"
 gh_personal_EMAIL="personal@example.invalid"
@@ -183,10 +183,10 @@ expect_alias() {
 echo "== 3. workstation routing (git $(git --version | awk '{print $3}'))"
 gitcfg "$WS"
 K=$WS/.ssh
-expect_route "$WS" git@github.com:cloud-practitioner/x.git personal@example.invalid "$K/id_ed25519_gh_personal"
-expect_route "$WS" ssh://git@github.com/cloud-practitioner/x.git personal@example.invalid "$K/id_ed25519_gh_personal"
-expect_route "$WS" https://github.com/cloud-practitioner/x.git personal@example.invalid ""
-expect_route "$WS" git@github.com-personal:cloud-practitioner/x.git personal@example.invalid "$K/id_ed25519_gh_personal"
+expect_route "$WS" git@github.com:example-owner/x.git personal@example.invalid "$K/id_ed25519_gh_personal"
+expect_route "$WS" ssh://git@github.com/example-owner/x.git personal@example.invalid "$K/id_ed25519_gh_personal"
+expect_route "$WS" https://github.com/example-owner/x.git personal@example.invalid ""
+expect_route "$WS" git@github.com-personal:example-owner/x.git personal@example.invalid "$K/id_ed25519_gh_personal"
 expect_route "$WS" git@github.com:work-org/y.git gh-work@example.invalid "$K/id_ed25519_gh_work"
 expect_route "$WS" https://someone@github.com/work-org/y.git gh-work@example.invalid ""
 expect_route "$WS" git@bitbucket.org:iqx-test/z.git bb-work@example.invalid "$K/id_ed25519_bb_work"
@@ -217,9 +217,9 @@ assert_not_contains "$out" "cannot write" "a read-only identity directory is nev
 assert_not_contains "$out" "gh_personal:" "container: the forwarded agent holds gh_personal"
 [ "$mounted_before" = "$(find "$D" -printf '%P %m %s %T@\n' | sort)" ] || fail "container leaves the mounted identity directory unchanged"
 gitcfg "$CT"
-expect_route "$CT" git@github.com:cloud-practitioner/x.git personal@example.invalid "$CT/.config/dotfiles/pub/gh_personal.pub"
+expect_route "$CT" git@github.com:example-owner/x.git personal@example.invalid "$CT/.config/dotfiles/pub/gh_personal.pub"
 expect_route "$CT" git@bitbucket.org:iqx-test/z.git bb-work@example.invalid "$CT/.config/dotfiles/pub/bb_work.pub"
-for url in git@github.com-personal:cloud-practitioner/x.git ssh://git@github.com-personal/cloud-practitioner/x.git; do
+for url in git@github.com-personal:example-owner/x.git ssh://git@github.com-personal/example-owner/x.git; do
   expect_route "$CT" "$url" personal@example.invalid "$CT/.config/dotfiles/pub/gh_personal.pub"
 done
 for url in git@bitbucket.org-work:iqx-test/z.git ssh://git@bitbucket.org-work/iqx-test/z.git; do
