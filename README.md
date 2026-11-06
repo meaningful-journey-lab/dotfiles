@@ -460,8 +460,7 @@ name order, silently. The rules:
 
 The TypeSafe key for [compact-adviser](#compact-adviser-claude-code) is such a
 secret. It lives at `/workspaces/wp/.secrets/compact-adviser/typesafe.env`
-(variable `TYPESAFE_API_KEY`, folder mode 700, file mode 600), or at
-`~/.secrets/compact-adviser/typesafe.env` on the workstation. Never put the key
+(variable `TYPESAFE_API_KEY`, folder mode 700, file mode 600). Never put the key
 at the top level of `.secrets` or in a home `.env` file: every shell and every
 tool that reads those files would get it. Never save it through the plugin's
 `/compact-adviser` key prompt: that writes it in clear text to `settings.json`.

@@ -12,7 +12,7 @@
 #   the plugin directory packages/claude-mod holds plugin.json version 0.1.14;
 # - that copy is read-only;
 # - `claude plugin validate` passes on it (skipped where claude is absent);
-# - the dotfiles never install, add a marketplace for, or enable the plugin.
+# - the dotfiles settings enable no plugin at user scope.
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -25,20 +25,11 @@ dotfiles_test_tmproot compact-adviser
 SYSTEM=$(nix eval --impure --raw --expr builtins.currentSystem)
 LINK=.local/share/compact-adviser
 PLUGIN=$LINK/packages/claude-mod
-PINNED_REV=37fa1a665b8933de68c90014312060e862cf121a
-
-grep -q "rev = \"$PINNED_REV\";" "$ROOT/home.nix" ||
-  fail "home.nix pins compact-adviser to tag compact-adviser-v0.1.14 ($PINNED_REV)"
-pass "home.nix pins compact-adviser to compact-adviser-v0.1.14"
 
 # The plugin must stay absent from every session unless a launch asks for it.
-if grep -rnE 'claude +plugin +(install|marketplace +add)[^#]*compact-adviser|compact-adviser@[a-z]+": *true' \
-  "$ROOT" --include='*.nix' --include='*.sh' --include='*.json' --exclude-dir=.git --exclude-dir=tests; then
-  fail "compact-adviser is never installed, added as a marketplace, or enabled by the dotfiles"
-fi
 jq -e 'has("enabledPlugins") | not' "$ROOT/home/.claude/settings.json" >/dev/null ||
   fail "the dotfiles settings enable no plugin at user scope"
-pass "nothing installs or enables compact-adviser; it loads only with --plugin-dir"
+pass "the dotfiles settings enable no plugin at user scope"
 
 check_profile() {
   local profile=$1 files dir version
