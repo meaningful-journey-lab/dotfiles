@@ -283,7 +283,9 @@ not from the folder it sits in:
   with one `includeIf "hasconfig:remote.*.url:..."` rule per owner and per URL
   spelling (`git@host:owner/**`, `ssh://git@host/owner/**`, `https://host/owner/**`,
   `https://user@host/owner/**`, plus `git@alias:owner/**` and
-  `ssh://git@alias/owner/**` when you set a legacy SSH alias), each pointing at
+  `ssh://git@alias/owner/**` when you set a legacy SSH alias; a `bitbucket.org`
+  identity also gets the `git@ssh.bitbucket.org:` and `ssh://git@ssh.bitbucket.org/`
+  spellings, Bitbucket Cloud's SSH git host), each pointing at
   `~/.config/git/identity/<label>.gitconfig`: `user.name`,
   `user.email`, and `core.sshCommand = ssh -i '<key>' -o IdentitiesOnly=yes`
   (with `-F ~/.ssh/config.d/identities` in the container so legacy aliases resolve;
@@ -291,7 +293,8 @@ not from the folder it sits in:
 - `programs.git` itself sets `user.useConfigOnly = true` (a repo whose owner
   matches no identity **refuses the commit** instead of guessing one) and includes
   the rendered file. `pushInsteadOf` sends pushes for plain `https://github.com/`
-  and `https://bitbucket.org/` remotes over SSH, while their fetch URLs stay HTTPS.
+  and `https://bitbucket.org/` remotes over SSH (to `git@github.com:` and
+  `git@ssh.bitbucket.org:`), while their fetch URLs stay HTTPS.
   User-qualified HTTPS remotes (`https://user@host/...`) deliberately select the
   commit identity but keep pushing over HTTPS for credential-based access.
   There are no folder (`gitdir:`) rules and no `insteadOf`.
@@ -313,7 +316,8 @@ interactive zsh, with one line) says there is no identity file yet. Then:
 1. Copy the template and edit it:
    `install -D -m 600 ~/.dotfiles/identity.env.example ~/.config/dotfiles/identity.env && ${EDITOR:-nvim} ~/.config/dotfiles/identity.env`
 2. List your identity labels in `IDENTITIES`, and per label set `<label>_HOST`
-   (`github.com`, `bitbucket.org`), `<label>_OWNERS` (space-separated orgs or users,
+   (`github.com`, `bitbucket.org`; keep `bitbucket.org` for Bitbucket, the renderer
+   maps its SSH traffic to `ssh.bitbucket.org`), `<label>_OWNERS` (space-separated orgs or users,
    as in the remote URL), `<label>_KEY` (the private key's absolute or `~/` path), `<label>_NAME`,
    `<label>_EMAIL`, and optionally `<label>_ALIAS` (a legacy SSH host alias such as
    `github.com-work`, for old `git@github.com-work:org/repo` remotes). The file is
@@ -344,7 +348,11 @@ from a read-only directory, `GIT_CONFIG_GLOBAL`, bad values, and stale outputs.
 ### SSH (workstation profile)
 
 On macOS, `programs.ssh` keeps the existing `github.com-personal`,
-`github.com-work`, and `bitbucket.org-work` aliases and their hard-coded key paths.
+`github.com-work`, and `bitbucket.org-work` aliases and their hard-coded key paths;
+`bitbucket.org-work` connects to Bitbucket's SSH host, `ssh.bitbucket.org`. macOS has
+no pinned host keys, so verify the fingerprint of the first connection to
+`ssh.bitbucket.org` against
+[Bitbucket host keys](https://support.atlassian.com/bitbucket-cloud/docs/configure-ssh-and-two-step-verification/).
 To adapt them, edit `sshKeys` and `programs.ssh.settings` in `home.nix`, and put
 your private keys in `~/.ssh` yourself (mode 600).
 
@@ -385,12 +393,14 @@ optional aliases plus the host-key policy include described below. A separate
 `meaningful-journey-lab/agentic-devcontainer` change will remove the Dockerfile's
 SSH file creation and `ssh-keyscan`; this dotfiles change does not remove them.
 
-The official host keys of `github.com` and `bitbucket.org` are committed in
+The official host keys of `github.com`, `ssh.bitbucket.org` (Bitbucket Cloud's SSH git
+host) and `bitbucket.org` (its older SSH name, kept for remotes cloned before the move)
+are committed in
 `ssh/pinned_known_hosts` (every key type each forge publishes, with the source and
 fingerprints in the file's comments) and linked read-only as
 `~/.ssh/pinned_known_hosts`. GitHub's former RSA key, exposed and replaced on
 2023-03-24, is pinned as `@revoked` so it can never be accepted from any
-known_hosts file. For those two hosts,
+known_hosts file. For those three hosts,
 `~/.ssh/pinned-hosts.conf` sets `StrictHostKeyChecking yes` and reads only
 `~/.ssh/known_hosts` and the pinned file: with the keys pinned there is nothing to
 trust on first use, and an unknown key is refused instead of learned. A stale
@@ -404,7 +414,7 @@ reads `~/.ssh/config`. Plain SSH to other hosts keeps the `*` defaults, includin
 path does not inherit those defaults and uses OpenSSH's `ask` default for other
 hosts. The writable `~/.ssh/known_hosts` is never linked or replaced by this repo.
 `activation/identity.sh check container` (run at every switch) offline-checks
-that both forges have a non-revoked entry in the pinned file, even without an
+that all three hosts have a non-revoked entry in the pinned file, even without an
 identity file; it does not contact either forge.
 
 The switch also makes `~/.ssh` and `~/.ssh/config.d` mode 700. If an older image
@@ -688,11 +698,11 @@ Home Manager deliberately does not manage `~/.pi/agent` itself, or Pi authentica
 
 The private Ixia plugin marketplace (Bitbucket `iqxbusiness/ixia-marketplace`, branch `master`; marketplace `ixia`, plugins `ixia-stratex` and `ixia-onelist`: plan-gate, review-panel and the other Ixia skills, with the reviewer agents) is for **IQX Bitbucket work only**. This config makes it available on Linux (workstation and container) and macOS without enabling it globally. Keep enablement and on-demand loading limited to IQX Bitbucket work; do not use plan-gate or review-panel on personal GitHub or other repositories. The repository is private: a machine needs Bitbucket access over SSH (the same key and agent that clone other IQX repositories). Without it, the switch only warns and the next switch retries. No credentials are stored here; only the repository name appears.
 
-On macOS, load the Bitbucket work key into the SSH agent with `ssh-add ~/.ssh/id_ed25519_bb_work` before switching or starting Claude Code: both Pi's clone/refresh and Claude Code's marketplace fetch use the canonical `git@bitbucket.org:iqxbusiness/ixia-marketplace.git` URL. If the key is not loaded or the machine lacks Bitbucket access, the switch only warns and skips the Pi clone/update (exit 0, keeping any existing clone); it never fails the switch, and the next switch retries.
+On macOS, load the Bitbucket work key into the SSH agent with `ssh-add ~/.ssh/id_ed25519_bb_work` before switching or starting Claude Code: both Pi's clone/refresh and Claude Code's marketplace fetch use the canonical `git@ssh.bitbucket.org:iqxbusiness/ixia-marketplace.git` URL (a clone made from the older `git@bitbucket.org:` URL has its origin moved on the next switch). If the key is not loaded or the machine lacks Bitbucket access, the switch only warns and skips the Pi clone/update (exit 0, keeping any existing clone); it never fails the switch, and the next switch retries.
 
 - **Claude Code** installs and updates the plugins itself. `home/.claude/settings.json` registers the marketplace as `extraKnownMarketplaces.ixia` (git source, the canonical SSH URL above, `autoUpdate: true`) but deliberately does **not** enable `ixia-stratex@ixia` or `ixia-onelist@ixia` at user level: enabled there, they would load in every Claude session on the machine. The SSH form is the one Claude can fetch unattended; the HTTPS URL would need a Bitbucket login. For the owner-preserving merge when `$CLAUDE_CONFIG_DIR` points elsewhere, see [Devcontainers](#devcontainers). The plugins load per session, through one of three paths:
   1. **A Firstmate home's config file.** An IQX home (iqxo, atc, fab) puts both ids in its own `config/claude-plugins`, and Firstmate adds them to the `--settings` of that home's launches. Nothing here sets that file.
-  2. **The `claude` Zsh function (interactive sessions).** When `git config --get remote.origin.url` names `bitbucket.org` and the `iqxbusiness` workspace (SSH, an SSH host alias such as `bitbucket.org-work`, or HTTPS) and the command line has no `--settings` argument, the function runs `command claude --settings '{"enabledPlugins":{"ixia-stratex@ixia":true,"ixia-onelist@ixia":true}}' "$@"`. In any other directory, or with your own `--settings`, it runs `command claude "$@"` unchanged. The setting lasts for that session and is written nowhere. Firstmate launches run `env ... claude`, so they never see the function.
+  2. **The `claude` Zsh function (interactive sessions).** When `git config --get remote.origin.url` names `bitbucket.org` and the `iqxbusiness` workspace (SSH on `ssh.bitbucket.org` or the older `bitbucket.org`, an SSH host alias such as `bitbucket.org-work`, or HTTPS) and the command line has no `--settings` argument, the function runs `command claude --settings '{"enabledPlugins":{"ixia-stratex@ixia":true,"ixia-onelist@ixia":true}}' "$@"`. In any other directory, or with your own `--settings`, it runs `command claude "$@"` unchanged. The setting lasts for that session and is written nowhere. Firstmate launches run `env ... claude`, so they never see the function.
   3. **IQX project settings.** If an IQX repository adds `"enabledPlugins": {"ixia-stratex@ixia": true}` to its own tracked `.claude/settings.json`, the plugin loads for everyone in that repository. `iqx.orchestration.online` does **not** do this today: its `.claude/settings.json` only registers the marketplace (over HTTPS). The Bitbucket repositories are not changed from here.
 
   The user settings stay free of Ixia plugins. If an earlier `/plugin install` enabled them there, disable them, never uninstall them (after an uninstall, a git marketplace re-installs the plugin only in the background, so the first session that asks for it loads nothing). Run the commands from a neutral directory:

@@ -19,7 +19,8 @@
 # - no clone yet: `git clone --depth 1` into $IXIA_MARKETPLACE_DIR (default
 #   ~/.local/share/ixia-marketplace, outside this checkout), through a
 #   temporary directory so a failed clone leaves nothing behind;
-# - a clone: `git fetch`, then a fast-forward merge only, so the clone follows
+# - a clone: an origin still on the old bitbucket.org SSH URL moves to $URL, then
+#   `git fetch` and a fast-forward merge only, so the clone follows
 #   the marketplace's releases and never discards or overwrites local changes
 #   or local commits (it warns and stays put instead).
 #
@@ -32,7 +33,10 @@
 # Usage: tools/ixia-marketplace.sh
 set -uo pipefail
 
-URL=${IXIA_MARKETPLACE_URL:-git@bitbucket.org:iqxbusiness/ixia-marketplace.git}
+URL=${IXIA_MARKETPLACE_URL:-git@ssh.bitbucket.org:iqxbusiness/ixia-marketplace.git}
+# The SSH URL older switches cloned from, before Bitbucket moved its SSH git
+# host to ssh.bitbucket.org; refresh() moves such a clone's origin to $URL.
+LEGACY_URL=git@bitbucket.org:iqxbusiness/ixia-marketplace.git
 DIR=${IXIA_MARKETPLACE_DIR:-$HOME/.local/share/ixia-marketplace}
 SKILLS_SUBDIR=plugins/ixia-stratex/skills
 
@@ -72,6 +76,9 @@ refresh() {
   if ! git -C "$DIR" rev-parse --git-dir >/dev/null 2>&1 || [ "$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null)" != "$(cd "$DIR" && pwd -P)" ]; then
     warn "$DIR exists but is not a git clone; leaving it alone (move it aside to get a fresh clone)"
     return 0
+  fi
+  if [ "$(git -C "$DIR" config --get remote.origin.url 2>/dev/null)" = "$LEGACY_URL" ] && [ "$URL" != "$LEGACY_URL" ]; then
+    git -C "$DIR" remote set-url origin "$URL" >/dev/null 2>&1 && say "moved origin of $DIR to $URL"
   fi
   before=$(git -C "$DIR" rev-parse HEAD 2>/dev/null)
   if ! git_run "$DIR" -C "$DIR" fetch --quiet origin 2>/dev/null; then

@@ -55,7 +55,7 @@
     "ixia": {
       "source": {
         "source": "git",
-        "url": "git@bitbucket.org:iqxbusiness/ixia-marketplace.git"
+        "url": "git@ssh.bitbucket.org:iqxbusiness/ixia-marketplace.git"
       },
       "autoUpdate": true
     }

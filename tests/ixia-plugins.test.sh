@@ -140,6 +140,7 @@ SH
     }
 
     for origin in \
+      git@ssh.bitbucket.org:iqxbusiness/iqx.example.git \
       git@bitbucket.org:iqxbusiness/iqx.example.git \
       git@bitbucket.org-work:iqxbusiness/iqx.example.git \
       https://bitbucket.org/iqxbusiness/iqx.example.git \
@@ -336,7 +337,7 @@ SH
 chmod +x "$DEFAULT_BIN/git"
 OUT=$(env -u IXIA_MARKETPLACE_URL -u IXIA_MARKETPLACE_DIR HOME="$TMP_ROOT/home2" PATH="$DEFAULT_BIN:$PATH" \
   REAL_GIT="$(command -v git)" LOCAL_MARKETPLACE="$URL" CLONE_URL_LOG="$TMP_ROOT/clone-url" bash "$CLONE_SCRIPT" 2>&1)
-[ "$(cat "$TMP_ROOT/clone-url")" = git@bitbucket.org:iqxbusiness/ixia-marketplace.git ] || fail "default SSH clone URL: $OUT"
+[ "$(cat "$TMP_ROOT/clone-url")" = git@ssh.bitbucket.org:iqxbusiness/ixia-marketplace.git ] || fail "default SSH clone URL: $OUT"
 [ -f "$TMP_ROOT/home2/$SKILLS_DIR/plan-gate/SKILL.md" ] || fail "default clone provides the skills directory to load on demand: $OUT"
 pass "default SSH URL and clone destination provide the skills directory for pi-ixia"
 
@@ -349,7 +350,7 @@ exec git upload-pack "$SSH_UPSTREAM"
 SH
 chmod +x "$SSH_BIN/ssh"
 cat >"$HOME_DIR/.gitconfig" <<EOF
-[includeIf "hasconfig:remote.*.url:git@bitbucket.org:iqxbusiness/**"]
+[includeIf "hasconfig:remote.*.url:git@ssh.bitbucket.org:iqxbusiness/**"]
   path = $HOME_DIR/work.gitconfig
 EOF
 git config --file "$HOME_DIR/work.gitconfig" core.sshCommand "'$SSH_BIN/ssh' -i 'work key' -o IdentitiesOnly=yes -F 'pinned hosts'"
@@ -365,7 +366,7 @@ for identity in config env default; do
     : >"$TMP_ROOT/ssh-args"
     OUT=$(env -u GIT_SSH_COMMAND HOME="$HOME_DIR" GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$HOME_DIR/.gitconfig" \
       GIT_SSH_VARIANT=ssh SSH_ARGS_LOG="$TMP_ROOT/ssh-args" SSH_UPSTREAM="$UP" \
-      IXIA_MARKETPLACE_URL=git@bitbucket.org:iqxbusiness/ixia-marketplace.git IXIA_MARKETPLACE_DIR="$DIR" \
+      IXIA_MARKETPLACE_URL=git@ssh.bitbucket.org:iqxbusiness/ixia-marketplace.git IXIA_MARKETPLACE_DIR="$DIR" \
       "${identity_env[@]}" bash "$CLONE_SCRIPT" 2>&1)
     [ $? = 0 ] && [ -f "$DIR/plugins/ixia-stratex/skills/plan-gate/SKILL.md" ] || fail "SSH $identity $operation: clone available: $OUT"
     for option in BatchMode=yes ConnectTimeout=15; do
@@ -394,12 +395,22 @@ pass "clone and refresh work without timeout or realpath on PATH"
 
 before=$(git -C "$DIR" rev-parse HEAD)
 git -C "$DIR" remote set-url origin git@bitbucket.org:iqxbusiness/ixia-marketplace.git
-run_clone PATH="$PORTABLE_BIN" GIT_CONFIG_GLOBAL=/dev/null GIT_SSH_COMMAND=false GIT_SSH_VARIANT=ssh
+run_clone PATH="$PORTABLE_BIN" GIT_CONFIG_GLOBAL=/dev/null GIT_SSH_COMMAND=false GIT_SSH_VARIANT=ssh \
+  IXIA_MARKETPLACE_URL=git@ssh.bitbucket.org:iqxbusiness/ixia-marketplace.git
 [ "$RC" = 0 ] && [ "$(git -C "$DIR" rev-parse HEAD)" = "$before" ] || fail "without timeout: rejected SSH fetch exits 0 and keeps clone: $OUT"
 assert_contains "$OUT" "warning: cannot fetch" "without timeout: rejected SSH fetch warns"
+# A clone made before Bitbucket moved its SSH git host follows the new URL; any other origin stays.
+[ "$(git -C "$DIR" config --get remote.origin.url)" = git@ssh.bitbucket.org:iqxbusiness/ixia-marketplace.git ] ||
+  fail "an origin on the older bitbucket.org SSH URL moves to ssh.bitbucket.org: $OUT"
+assert_contains "$OUT" "moved origin of" "the origin move is reported"
+git -C "$DIR" remote set-url origin git@example.invalid:iqxbusiness/ixia-marketplace.git
+run_clone PATH="$PORTABLE_BIN" GIT_CONFIG_GLOBAL=/dev/null GIT_SSH_COMMAND=false GIT_SSH_VARIANT=ssh \
+  IXIA_MARKETPLACE_URL=git@ssh.bitbucket.org:iqxbusiness/ixia-marketplace.git
+[ "$(git -C "$DIR" config --get remote.origin.url)" = git@example.invalid:iqxbusiness/ixia-marketplace.git ] ||
+  fail "an origin the owner pointed elsewhere is left alone: $OUT"
 DIR="$TMP_ROOT/portable-failed/ixia-marketplace"
 run_clone PATH="$PORTABLE_BIN" GIT_CONFIG_GLOBAL=/dev/null GIT_SSH_COMMAND=false GIT_SSH_VARIANT=ssh \
-  IXIA_MARKETPLACE_URL=git@bitbucket.org:iqxbusiness/ixia-marketplace.git
+  IXIA_MARKETPLACE_URL=git@ssh.bitbucket.org:iqxbusiness/ixia-marketplace.git
 [ "$RC" = 0 ] && [ ! -e "$DIR" ] && [ "$(find "$TMP_ROOT/portable-failed" -mindepth 1 | wc -l)" = 0 ] ||
   fail "without timeout: rejected SSH clone exits 0 without leftovers: $OUT"
 assert_contains "$OUT" "warning: cannot clone" "without timeout: rejected SSH clone warns"
