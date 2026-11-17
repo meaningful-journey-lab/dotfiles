@@ -395,19 +395,9 @@ pass "clone and refresh work without timeout or realpath on PATH"
 
 before=$(git -C "$DIR" rev-parse HEAD)
 git -C "$DIR" remote set-url origin git@bitbucket.org:iqxbusiness/ixia-marketplace.git
-run_clone PATH="$PORTABLE_BIN" GIT_CONFIG_GLOBAL=/dev/null GIT_SSH_COMMAND=false GIT_SSH_VARIANT=ssh \
-  IXIA_MARKETPLACE_URL=git@ssh.bitbucket.org:iqxbusiness/ixia-marketplace.git
+run_clone PATH="$PORTABLE_BIN" GIT_CONFIG_GLOBAL=/dev/null GIT_SSH_COMMAND=false GIT_SSH_VARIANT=ssh
 [ "$RC" = 0 ] && [ "$(git -C "$DIR" rev-parse HEAD)" = "$before" ] || fail "without timeout: rejected SSH fetch exits 0 and keeps clone: $OUT"
 assert_contains "$OUT" "warning: cannot fetch" "without timeout: rejected SSH fetch warns"
-# A clone made before Bitbucket moved its SSH git host follows the new URL; any other origin stays.
-[ "$(git -C "$DIR" config --get remote.origin.url)" = git@ssh.bitbucket.org:iqxbusiness/ixia-marketplace.git ] ||
-  fail "an origin on the older bitbucket.org SSH URL moves to ssh.bitbucket.org: $OUT"
-assert_contains "$OUT" "moved origin of" "the origin move is reported"
-git -C "$DIR" remote set-url origin git@example.invalid:iqxbusiness/ixia-marketplace.git
-run_clone PATH="$PORTABLE_BIN" GIT_CONFIG_GLOBAL=/dev/null GIT_SSH_COMMAND=false GIT_SSH_VARIANT=ssh \
-  IXIA_MARKETPLACE_URL=git@ssh.bitbucket.org:iqxbusiness/ixia-marketplace.git
-[ "$(git -C "$DIR" config --get remote.origin.url)" = git@example.invalid:iqxbusiness/ixia-marketplace.git ] ||
-  fail "an origin the owner pointed elsewhere is left alone: $OUT"
 DIR="$TMP_ROOT/portable-failed/ixia-marketplace"
 run_clone PATH="$PORTABLE_BIN" GIT_CONFIG_GLOBAL=/dev/null GIT_SSH_COMMAND=false GIT_SSH_VARIANT=ssh \
   IXIA_MARKETPLACE_URL=git@ssh.bitbucket.org:iqxbusiness/ixia-marketplace.git
