@@ -189,6 +189,9 @@ expect_route "$WS" https://github.com/example-owner/x.git personal@example.inval
 expect_route "$WS" git@github.com-personal:example-owner/x.git personal@example.invalid "$K/id_ed25519_gh_personal"
 expect_route "$WS" git@github.com:work-org/y.git gh-work@example.invalid "$K/id_ed25519_gh_work"
 expect_route "$WS" https://someone@github.com/work-org/y.git gh-work@example.invalid ""
+expect_route "$WS" git@ssh.bitbucket.org:iqx-test/z.git bb-work@example.invalid "$K/id_ed25519_bb_work"
+expect_route "$WS" ssh://git@ssh.bitbucket.org/iqx-test/z.git bb-work@example.invalid "$K/id_ed25519_bb_work"
+# Remotes cloned before the SSH host moved keep their identity.
 expect_route "$WS" git@bitbucket.org:iqx-test/z.git bb-work@example.invalid "$K/id_ed25519_bb_work"
 expect_route "$WS" https://someone@bitbucket.org/iqx-test/z.git bb-work@example.invalid ""
 expect_route "$WS" git@bitbucket.org-work:iqx-test/z.git bb-work@example.invalid "$K/id_ed25519_bb_work"
@@ -218,6 +221,7 @@ assert_not_contains "$out" "gh_personal:" "container: the forwarded agent holds 
 [ "$mounted_before" = "$(find "$D" -printf '%P %m %s %T@\n' | sort)" ] || fail "container leaves the mounted identity directory unchanged"
 gitcfg "$CT"
 expect_route "$CT" git@github.com:example-owner/x.git personal@example.invalid "$CT/.config/dotfiles/pub/gh_personal.pub"
+expect_route "$CT" git@ssh.bitbucket.org:iqx-test/z.git bb-work@example.invalid "$CT/.config/dotfiles/pub/bb_work.pub"
 expect_route "$CT" git@bitbucket.org:iqx-test/z.git bb-work@example.invalid "$CT/.config/dotfiles/pub/bb_work.pub"
 for url in git@github.com-personal:example-owner/x.git ssh://git@github.com-personal/example-owner/x.git; do
   expect_route "$CT" "$url" personal@example.invalid "$CT/.config/dotfiles/pub/gh_personal.pub"
@@ -226,7 +230,7 @@ for url in git@bitbucket.org-work:iqx-test/z.git ssh://git@bitbucket.org-work/iq
   expect_route "$CT" "$url" bb-work@example.invalid "$CT/.config/dotfiles/pub/bb_work.pub"
 done
 expect_alias "$CT" gh_personal github.com-personal github.com "$CT/.config/dotfiles/pub/gh_personal.pub"
-expect_alias "$CT" bb_work bitbucket.org-work bitbucket.org "$CT/.config/dotfiles/pub/bb_work.pub"
+expect_alias "$CT" bb_work bitbucket.org-work ssh.bitbucket.org "$CT/.config/dotfiles/pub/bb_work.pub"
 chmod -R u+w "$WS/.config/dotfiles"
 rm "$CT/.config/dotfiles"
 runo "$CT" container check
@@ -252,14 +256,23 @@ rm "$pinned"
 runo "$CT" container check
 [ "$RC" = 1 ] || fail "container check fails without the pinned keys"
 assert_contains "$(cat "$OUT")" "no pinned github.com host key in ~/.ssh/pinned_known_hosts" "a missing pinned file is named for GitHub"
-assert_contains "$(cat "$OUT")" "no pinned bitbucket.org host key in ~/.ssh/pinned_known_hosts" "a missing pinned file is named for Bitbucket"
+assert_contains "$(cat "$OUT")" "no pinned ssh.bitbucket.org host key in ~/.ssh/pinned_known_hosts" "a missing pinned file is named for Bitbucket's SSH host"
+assert_contains "$(cat "$OUT")" "no pinned bitbucket.org host key in ~/.ssh/pinned_known_hosts" "a missing pinned file is named for Bitbucket's older host name"
 assert_contains "$(cat "$OUT")" "Run hm-update" "the check says how to restore the pins"
 # A @revoked entry is not a pin: GitHub left with only its revoked key still fails.
-grep -e '^@revoked github.com' -e '^bitbucket.org ' "$TMP_ROOT/pinned.good" >"$pinned"
+grep -e '^@revoked github.com' -e '^ssh.bitbucket.org ' -e '^bitbucket.org ' "$TMP_ROOT/pinned.good" >"$pinned"
 runo "$CT" container check
 [ "$RC" = 1 ] || fail "container check fails when GitHub has only a revoked key"
 assert_contains "$(cat "$OUT")" "no pinned github.com host key" "a revoked-only GitHub entry is not a pin"
-assert_not_contains "$(cat "$OUT")" "no pinned bitbucket.org" "the Bitbucket pins are found"
+assert_not_contains "$(cat "$OUT")" "no pinned ssh.bitbucket.org" "the Bitbucket SSH host pins are found"
+assert_not_contains "$(cat "$OUT")" "no pinned bitbucket.org" "the older Bitbucket host pins are found"
+# Pins for the older Bitbucket name do not stand in for its SSH host.
+grep -e '^github.com ' -e '^bitbucket.org ' "$TMP_ROOT/pinned.good" >"$pinned"
+runo "$CT" container check
+[ "$RC" = 1 ] || fail "container check fails without pins for ssh.bitbucket.org"
+assert_contains "$(cat "$OUT")" "no pinned ssh.bitbucket.org host key" "bitbucket.org pins are not ssh.bitbucket.org pins"
+assert_not_contains "$(cat "$OUT")" "no pinned github.com" "the GitHub pins are found"
+grep -e '^@revoked github.com' -e '^ssh.bitbucket.org ' -e '^bitbucket.org ' "$TMP_ROOT/pinned.good" >"$pinned"
 # ~/.ssh/known_hosts does not stand in for the pinned file.
 grep '^github.com ' "$TMP_ROOT/pinned.good" >"$CT/.ssh/known_hosts"
 runo "$CT" container check

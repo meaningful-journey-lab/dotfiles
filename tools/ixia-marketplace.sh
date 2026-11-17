@@ -32,7 +32,7 @@
 # Usage: tools/ixia-marketplace.sh
 set -uo pipefail
 
-URL=${IXIA_MARKETPLACE_URL:-git@bitbucket.org:iqxbusiness/ixia-marketplace.git}
+URL=${IXIA_MARKETPLACE_URL:-git@ssh.bitbucket.org:iqxbusiness/ixia-marketplace.git}
 DIR=${IXIA_MARKETPLACE_DIR:-$HOME/.local/share/ixia-marketplace}
 SKILLS_SUBDIR=plugins/ixia-stratex/skills
 

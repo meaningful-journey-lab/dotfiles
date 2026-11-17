@@ -342,7 +342,7 @@ pass "edge: owner CLAUDE.md kept, existing hook command not duplicated"
 # (the form that fetches unattended), autoUpdate. The plugin is deliberately
 # not enabled at user level: only IQX Bitbucket repositories enable it, in
 # their own project settings.
-IXIA_URL=git@bitbucket.org:iqxbusiness/ixia-marketplace.git
+IXIA_URL=git@ssh.bitbucket.org:iqxbusiness/ixia-marketplace.git
 jq -e --arg u "$IXIA_URL" '.extraKnownMarketplaces == {ixia: {source: {source: "git", url: $u}, autoUpdate: true}}
   and (has("enabledPlugins") | not)' "$SRC_SETTINGS" >/dev/null ||
   fail "ixia: the dotfiles settings register marketplace ixia (SSH git source, autoUpdate) and enable no plugin"
