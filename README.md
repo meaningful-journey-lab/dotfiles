@@ -350,12 +350,14 @@ from a read-only directory, `GIT_CONFIG_GLOBAL`, bad values, and stale outputs.
 On macOS, `programs.ssh` keeps the existing `github.com-personal`,
 `github.com-work`, and `bitbucket.org-work` aliases and their hard-coded key paths;
 `bitbucket.org-work` connects to Bitbucket's SSH host, `ssh.bitbucket.org`.
+To adapt them, edit `sshKeys` and `programs.ssh.settings` in `home.nix`, and put
+your private keys in `~/.ssh` yourself (mode 600).
+
 Workstations (macOS and Linux) have no pinned host keys, so verify the fingerprint of
 the first connection to `ssh.bitbucket.org` against
 [Bitbucket host keys](https://support.atlassian.com/bitbucket-cloud/docs/configure-ssh-and-two-step-verification/);
 until it is in `~/.ssh/known_hosts`, an unattended clone (such as the Ixia marketplace's)
-fails with a host key warning. To adapt them, edit `sshKeys` and `programs.ssh.settings` in `home.nix`, and put
-your private keys in `~/.ssh` yourself (mode 600).
+fails with a host key warning.
 
 On the Linux workstation, `programs.ssh` writes `~/.ssh/config`: the `*` defaults
 this repo has always kept and an `Include ~/.ssh/config.d/identities`, which
@@ -442,8 +444,9 @@ echo 'github.com ssh-ed25519 AAAA...the-new-key' >> ~/.ssh/known_hosts
 echo 'ssh.bitbucket.org,bitbucket.org ssh-ed25519 AAAA...the-new-key' >> ~/.ssh/known_hosts
 ```
 
-(the second line is for a rotated Bitbucket key: the entry covers only the names it
-lists, and Bitbucket is pinned under both `ssh.bitbucket.org` and `bitbucket.org`.) Both plain `ssh` and git (including legacy aliases) read that file in addition to the
+(the second line is for a rotated Bitbucket key: an entry covers only the names it
+lists, and Bitbucket is pinned under both `ssh.bitbucket.org` and `bitbucket.org`.)
+Both plain `ssh` and git (including legacy aliases) read that file in addition to the
 pinned one, so it takes effect at once; a `@revoked` key stays refused. To make the
 fix permanent, update `ssh/pinned_known_hosts` from the same sources (for Bitbucket,
 both the `ssh.bitbucket.org` and `bitbucket.org` blocks), commit the
