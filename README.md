@@ -349,11 +349,12 @@ from a read-only directory, `GIT_CONFIG_GLOBAL`, bad values, and stale outputs.
 
 On macOS, `programs.ssh` keeps the existing `github.com-personal`,
 `github.com-work`, and `bitbucket.org-work` aliases and their hard-coded key paths;
-`bitbucket.org-work` connects to Bitbucket's SSH host, `ssh.bitbucket.org`. macOS has
-no pinned host keys, so verify the fingerprint of the first connection to
-`ssh.bitbucket.org` against
-[Bitbucket host keys](https://support.atlassian.com/bitbucket-cloud/docs/configure-ssh-and-two-step-verification/).
-To adapt them, edit `sshKeys` and `programs.ssh.settings` in `home.nix`, and put
+`bitbucket.org-work` connects to Bitbucket's SSH host, `ssh.bitbucket.org`.
+Workstations (macOS and Linux) have no pinned host keys, so verify the fingerprint of
+the first connection to `ssh.bitbucket.org` against
+[Bitbucket host keys](https://support.atlassian.com/bitbucket-cloud/docs/configure-ssh-and-two-step-verification/);
+until it is in `~/.ssh/known_hosts`, an unattended clone (such as the Ixia marketplace's)
+fails with a host key warning. To adapt them, edit `sshKeys` and `programs.ssh.settings` in `home.nix`, and put
 your private keys in `~/.ssh` yourself (mode 600).
 
 On the Linux workstation, `programs.ssh` writes `~/.ssh/config`: the `*` defaults
@@ -698,7 +699,7 @@ Home Manager deliberately does not manage `~/.pi/agent` itself, or Pi authentica
 
 The private Ixia plugin marketplace (Bitbucket `iqxbusiness/ixia-marketplace`, branch `master`; marketplace `ixia`, plugins `ixia-stratex` and `ixia-onelist`: plan-gate, review-panel and the other Ixia skills, with the reviewer agents) is for **IQX Bitbucket work only**. This config makes it available on Linux (workstation and container) and macOS without enabling it globally. Keep enablement and on-demand loading limited to IQX Bitbucket work; do not use plan-gate or review-panel on personal GitHub or other repositories. The repository is private: a machine needs Bitbucket access over SSH (the same key and agent that clone other IQX repositories). Without it, the switch only warns and the next switch retries. No credentials are stored here; only the repository name appears.
 
-On macOS, load the Bitbucket work key into the SSH agent with `ssh-add ~/.ssh/id_ed25519_bb_work` before switching or starting Claude Code: both Pi's clone/refresh and Claude Code's marketplace fetch use the canonical `git@ssh.bitbucket.org:iqxbusiness/ixia-marketplace.git` URL. If the key is not loaded or the machine lacks Bitbucket access, the switch only warns and skips the Pi clone/update (exit 0, keeping any existing clone); it never fails the switch, and the next switch retries.
+On macOS, load the Bitbucket work key into the SSH agent with `ssh-add ~/.ssh/id_ed25519_bb_work` before switching or starting Claude Code: new Pi clones and Claude Code's marketplace registration use the canonical `git@ssh.bitbucket.org:iqxbusiness/ixia-marketplace.git` URL; an existing clone or an already merged owner `settings.json` keeps its original `git@bitbucket.org:` origin, which still works because `bitbucket.org` stays pinned and routed. If the key is not loaded or the machine lacks Bitbucket access, the switch only warns and skips the Pi clone/update (exit 0, keeping any existing clone); it never fails the switch, and the next switch retries.
 
 - **Claude Code** installs and updates the plugins itself. `home/.claude/settings.json` registers the marketplace as `extraKnownMarketplaces.ixia` (git source, the canonical SSH URL above, `autoUpdate: true`) but deliberately does **not** enable `ixia-stratex@ixia` or `ixia-onelist@ixia` at user level: enabled there, they would load in every Claude session on the machine. The SSH form is the one Claude can fetch unattended; the HTTPS URL would need a Bitbucket login. For the owner-preserving merge when `$CLAUDE_CONFIG_DIR` points elsewhere, see [Devcontainers](#devcontainers). The plugins load per session, through one of three paths:
   1. **A Firstmate home's config file.** An IQX home (iqxo, atc, fab) puts both ids in its own `config/claude-plugins`, and Firstmate adds them to the `--settings` of that home's launches. Nothing here sets that file.
