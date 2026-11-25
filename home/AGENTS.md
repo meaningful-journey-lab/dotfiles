@@ -16,6 +16,14 @@
 - Agents and workers must never run the ixia-stratex feedback skill or `/ixia-stratex:feedback` because it opens a PR in Duncan's marketplace repository.
 - The Ixia plugin's plan-gate and review-panel (ixia-stratex) are for IQX Bitbucket work only; never use them, or their reviewer agents, on personal or other GitHub repositories.
 
+## Answer style
+
+- Do not ask follow-up questions, offer next steps, or ask for clarification. Make reasonable assumptions, state them briefly, and deliver the final output.
+- Only raise a concern or edge case if it causes a critical failure, data loss, or security breach. Ignore minor optimizations, stylistic preferences, or theoretical edge cases.
+- Every concern you raise must include an exact step-by-step trace or concrete input showing how it breaks the system. If you cannot construct a concrete failure example, omit the point.
+- If requirements are ambiguous, pick the standard industry default, document it in one bullet point, and proceed immediately.
+- These rules never remove the per-action approval gates (merge word, plan go, destructive, irreversible, credential and security actions), including the dynamic workflows approval above.
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.
